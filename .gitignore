@@ -1,0 +1,18 @@
+# Environments
+venv/
+env/
+.env
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Auto-generated simulation outputs (large files)
+*.gif
+
+# IDEs and OS specific
+.idea/
+.vscode/
+.DS_Store
+
