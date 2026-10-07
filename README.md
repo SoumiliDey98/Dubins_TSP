@@ -1,4 +1,4 @@
-# Multi-Agent Dubins TSP with Obstacle Avoidance & Game Theory Collision Resolution
+# Multi-Agent Dubins TSP with Obstacle Avoidance & Collision Resolution
 
 ## Project Overview
 
