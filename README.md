@@ -6,6 +6,8 @@ This project simulates a fleet of Mobile Sinks (robots or drones) assigned to co
 
 The primary goal of the system is to calculate optimal, collision-free paths for all mobile sinks such that they start from a base station, visit their assigned sensors, and return to the base station. The paths must obey the kinematic constraints of the mobile sinks (they can't make sharp turns, so we use **Dubins curves**). Furthermore, each robot has a strict time budget ($B$) to complete its tour. 
 
+At the heart of this system are two primary methodological pillars. First, to overcome battery and time constraints when a single drone cannot service all targets, the project employs Geodesic Spectral Partitioning to intelligently divide the map and group topologically close sensors into distinct clusters for each drone. Second, once targets are assigned, each drone determines its optimal visitation sequence through a hybrid approach: an intelligent radial heuristic initially forces the drone to fly outward to its furthest target and back, which is then dynamically refined using a Genetic Algorithm to minimize total travel distance.
+
 When the environment requires multiple robots, they might cross paths. This project elegantly resolves multi-robot collisions using **Game Theory (Nash Equilibrium)**, specifically treating narrow passages between obstacles as a "Corridor Game".
 
 ---
