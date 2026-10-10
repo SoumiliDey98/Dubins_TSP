@@ -10,26 +10,27 @@ def game_theory_resolve(env, all_trajectories, safe_dist=3.0):
     lower urgency (shorter overall path) Yields, while the more urgent robot Goes.
     """
     print("Resolving collisions using Game Theory (Nash Equilibrium)...")
-    keys = sorted(list(all_trajectories.keys()))
+    keys = sorted(list(all_trajectories.keys()))#sort all MS ids MS0, MS1, MS2,..
     
-    frame = 1
-    wait_counts = {k: 0 for k in keys}
+    frame = 1#starts with frame 1
+    wait_counts = {k: 0 for k in keys}#The counter records how many times the code has made a robot wait. initially its 0 for all MS 
     
     while True:
         if frame % 500 == 0:
-            print(f"Game Theory: Processing frame {frame}...", end='\r')
+            print(f"Game Theory: Processing frame {frame}...", end='\r')#The program prints a progress message every 500 frames
             
-        active = [k for k in keys if frame < len(all_trajectories[k])]
-        if len(active) < 2:
+        active = [k for k in keys if frame < len(all_trajectories[k])]#creates a list of robots that are active, if frame is <length of trajectory of MS the that MS is active
+                                                                    #An MS is considered active if the current frame index is smaller than the number of positions in its trajectory.
+        if len(active) < 2:#if only <2 MS are active then break from the loop
             break
             
         # We need to find all colliding pairs at this frame
         # To handle multiple simultaneous, we collect intended actions
-        strategies = {k: "Go" for k in active}
+        strategies = {k: "Go" for k in active}#This creates a dictionary assigning the initial action "Go" to every active robot.
         
-        for i in range(len(keys)):
-            k1 = keys[i]
-            if frame >= len(all_trajectories[k1]):
+        for i in range(len(keys)):#number of time loop runs=number of robots; that is no of keys
+            k1 = keys[i]#the first outer-loop iteration selects Robot A.
+            if frame >= len(all_trajectories[k1]):#Robot A has no position at the current frame, skip it.
                 continue
                 
             p1 = np.array(all_trajectories[k1][frame])
