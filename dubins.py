@@ -5,6 +5,7 @@ def returnDubinsPath(x1, y1, psi1, x2, y2, psi2, R):
     best_dist = float('inf')
     best_path = (None, None, None)
 
+    #finding CSC trajectory
     for turnType in ["LSL", "RSR", "LSR", "RSL"]:
         if turnType == "LSL":
             sigma1, sigma2 = 1, 1
@@ -19,14 +20,15 @@ def returnDubinsPath(x1, y1, psi1, x2, y2, psi2, R):
         xc2, yc2 = returnCircleCenter(x2, y2, psi2, sigma2, R)
         d = distance(xc1, xc2, yc1, yc2)
         
-        if turnType in ["LSR", "RSL"] and d < 2*R:
+        if turnType in ["LSR", "RSL"] and d < 2*R:#no path exists if d<2R or if 2R<=d<3R and turnType is LSR,RSR
             continue # Invalid
-            
+
         xt, yt, dist = calculateCSCTrajectory(x1, x2, xc1, xc2, y1, y2, yc1, yc2, psi1, psi2, R, turnType, sigma1, sigma2)
         if dist < best_dist:
             best_dist = dist
             best_path = (xt, yt, dist)
-            
+
+    #finding CCC trajectory
     for turnType in ["LRL", "RLR"]:
         if turnType == "LRL":
             sigma1, sigma2 = 1, 1
@@ -47,8 +49,8 @@ def returnDubinsPath(x1, y1, psi1, x2, y2, psi2, R):
 
     return best_path
 
-
-def findCSCTurnType(cp1, cp2):
+#below two fuctions are not used in the program
+'''def findCSCTurnType(cp1, cp2):
     if cp1 <= 0 and cp2 >= 0:
         turn = "RSL"
         sigma1 = -1
@@ -84,14 +86,14 @@ def findCCCTurnType(turnOld):
             sigma2 = 1
         proceed = True
     return sigma1, sigma2, turn, proceed
-
-
+'''
+#finding center of circle= origin_coordinates+Radius*vector_component
 def returnCircleCenter(x, y, psi, sigma, R):
     xc = x + R*np.cos(psi + sigma*np.pi/2)
     yc = y + R*np.sin(psi + sigma*np.pi/2)
     return xc, yc
 
-
+#finding euclidiean distance
 def distance(x1, x2, y1, y2):
     return np.hypot(x2-x1, y2-y1)
 
