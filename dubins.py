@@ -99,26 +99,42 @@ def distance(x1, x2, y1, y2):
 
 
 def generate_arc_points(xc, yc, R, start_angle, end_angle, sigma, step_size=0.1):
+     # 1. Calculate angular displacement, delta = (end_angle - start_angle)
     delta = (end_angle - start_angle) % (2 * np.pi)
+
+     # 2. Set clockwise direction
     if sigma == -1 and delta != 0:
         delta -= 2 * np.pi
     
+    # 3. Calculate number of intervals num_steps=delta/step_size
     num_steps = int(np.ceil(abs(delta) / step_size))
+    # 4. Handle zero-length arc
     if num_steps == 0:
         return [xc + R * np.cos(start_angle)], [yc + R * np.sin(start_angle)], 0.0
     
+    # 5. Generate N+1 equally spaced angles all at once
+    #syntax : np.linspace(start, stop, number_of_values) It generates evenly spaced numbers from start to stop, including both endpoints.
+    
     angles = start_angle + np.linspace(0, delta, num_steps + 1)
+    # 6. Calculate arc coordinates all at once and keeping in array 
     xs = xc + R * np.cos(angles)
     ys = yc + R * np.sin(angles)
+    
+    # 7. Calculate arc length
     distance = abs(delta) * R
+    
     return xs.tolist(), ys.tolist(), distance
 
 
 def generate_straight_points(x1, y1, x2, y2, step_size=0.5):
+     # 1. Calculate the Euclidean distance between the two endpoints
     dist = np.hypot(x2 - x1, y2 - y1)
+     # 2. Calculate the number of intervals (maximum spacing = step_size) num_steps = dist / step_size
     num_steps = int(np.ceil(dist / step_size))
+    # 3. If both endpoints coincide, return the single point and zero distance
     if num_steps == 0:
         return [x1], [y1], 0.0
+    # 4. Generate num_steps + 1 equally spaced x and y-coordinates
     xs = np.linspace(x1, x2, num_steps + 1)
     ys = np.linspace(y1, y2, num_steps + 1)
     return xs.tolist(), ys.tolist(), dist
