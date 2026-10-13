@@ -141,9 +141,12 @@ def generate_straight_points(x1, y1, x2, y2, step_size=0.5):
 
 
 def calculateCSCTrajectory(x1, x2, xc1, xc2, y1, y2, yc1, yc2, psi1, psi2, R, turnType, sigma1, sigma2):
-    d = distance(xc1, xc2, yc1, yc2)
-    theta = np.arctan2(yc2 - yc1, xc2 - xc1)
-
+    d = distance(xc1, xc2, yc1, yc2)#finding distance between two circles
+    theta = np.arctan2(yc2 - yc1, xc2 - xc1)#finding slope(angle) of the line joining two circles
+    
+    #finding cut out angle a1 and cut in angle a2 for each turnType(however cos-1 formula is used instead of tan-1)
+    #a1 = cut-out angle: where the first circular arc ends and the straight segment begins.
+    #a2 = cut-in angle: where the straight segment ends and the second circular arc begins.
     if turnType == "LSL":
         a1 = theta - np.pi/2
         a2 = theta - np.pi/2
@@ -158,15 +161,19 @@ def calculateCSCTrajectory(x1, x2, xc1, xc2, y1, y2, yc1, yc2, psi1, psi2, R, tu
         beta = math.acos(max(-1.0, min(1.0, 2*R / d)))
         a1 = theta - beta
         a2 = theta - beta + np.pi
-
+        
+    #finding cut and and cut out coordinates
     xco = xc1 + R * np.cos(a1)
     yco = yc1 + R * np.sin(a1)
     xci = xc2 + R * np.cos(a2)
     yci = yc2 + R * np.sin(a2)
 
+    #angle made by line joining first point and center of circle
     phi1 = np.arctan2(y1 - yc1, x1 - xc1)
+    #angle made by line joining last point and center of circle
     phi2 = np.arctan2(y2 - yc2, x2 - xc2)
-
+    
+    #total trajectory=first arc+straightline+second arc
     xs1, ys1, dist1 = generate_arc_points(xc1, yc1, R, phi1, a1, sigma1, step_size=0.1)
     xs_s, ys_s, dist_s = generate_straight_points(xco, yco, xci, yci, step_size=R*0.1)
     xs2, ys2, dist2 = generate_arc_points(xc2, yc2, R, a2, phi2, sigma2, step_size=0.1)
