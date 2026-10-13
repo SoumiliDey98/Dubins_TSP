@@ -37,7 +37,7 @@ def game_theory_resolve(env, all_trajectories, safe_dist=3.0):
             
             for j in range(i + 1, len(keys)):#checking array from i+1th position till the end, why i+1: To avoid checking the same pair twice
                 k2 = keys[j]
-                if frame >= len(all_trajectories[k2]):If Robot B has no position at this frame, skip it
+                if frame >= len(all_trajectories[k2]):#If Robot B has no position at this frame, skip it
                     continue
                     
                 p2 = np.array(all_trajectories[k2][frame])#This retrieves the second robot's position at the current frame and converts it into a NumPy array.
