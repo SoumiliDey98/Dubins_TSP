@@ -162,7 +162,7 @@ def calculateCSCTrajectory(x1, x2, xc1, xc2, y1, y2, yc1, yc2, psi1, psi2, R, tu
         a1 = theta - beta
         a2 = theta - beta + np.pi
         
-    #finding cut and and cut out coordinates
+    #finding cut and cut out coordinates
     xco = xc1 + R * np.cos(a1)
     yco = yc1 + R * np.sin(a1)
     xci = xc2 + R * np.cos(a2)
@@ -186,33 +186,37 @@ def calculateCSCTrajectory(x1, x2, xc1, xc2, y1, y2, yc1, yc2, psi1, psi2, R, tu
 
 
 def calculateCCCTrajectory(x1, x2, xc1, xc2, y1, y2, yc1, yc2, psi1, psi2, R, sigma1, sigma2):
-    d = distance(xc1, xc2, yc1, yc2)
-    u_vec = np.array([xc2 - xc1, yc2 - yc1])
-    u_vec = u_vec / np.linalg.norm(u_vec)
+    d = distance(xc1, xc2, yc1, yc2)#distance between the first two circle centers
+    u_vec = np.array([xc2 - xc1, yc2 - yc1])#The vector joining the centers
+    u_vec = u_vec / np.linalg.norm(u_vec)#normalizes this vector
 
-    theta = math.acos(max(-1.0, min(1.0, d / (4*R))))
-    Mco = np.array([[np.cos(theta), -sigma1*np.sin(theta)], [sigma1*np.sin(theta), np.cos(theta)]])
+    theta = math.acos(max(-1.0, min(1.0, d / (4*R))))#This angle is used to rotate the center-to-center unit vector when locating the third circle
+    Mco = np.array([[np.cos(theta), -sigma1*np.sin(theta)], [sigma1*np.sin(theta), np.cos(theta)]])#This matrix rotates a two-dimensional vector by an angle determined by theta and sigma1
     
-    C3 = 2*R*(Mco @ u_vec) + np.array([xc1, yc1])
+    C3 = 2*R*(Mco @ u_vec) + np.array([xc1, yc1])#Calculate the third circle center
     xc3, yc3 = C3[0], C3[1]
-    
+
+    #Calculate the junction points between the circles, which are the midpoints
     P13_x, P13_y = (xc1 + xc3)/2, (yc1 + yc3)/2
     P32_x, P32_y = (xc3 + xc2)/2, (yc3 + yc2)/2
-    
-    a13 = np.arctan2(P13_y - yc1, P13_x - xc1)
-    a31 = np.arctan2(P13_y - yc3, P13_x - xc3)
-    a32 = np.arctan2(P32_y - yc3, P32_x - xc3)
-    a23 = np.arctan2(P32_y - yc2, P32_x - xc2)
 
-    phi1 = np.arctan2(y1 - yc1, x1 - xc1)
-    phi2 = np.arctan2(y2 - yc2, x2 - xc2)
     
-    sigma3 = -sigma1
+    a13 = np.arctan2(P13_y - yc1, P13_x - xc1)#Junction angle on circle 1
+    a31 = np.arctan2(P13_y - yc3, P13_x - xc3)#Junction angle on circle 3 at the first junction
+    a32 = np.arctan2(P32_y - yc3, P32_x - xc3)#Junction angle on circle 3 at the second junction
+    a23 = np.arctan2(P32_y - yc2, P32_x - xc2)#Junction angle on circle 2
 
+    phi1 = np.arctan2(y1 - yc1, x1 - xc1)#phi1 identifies the starting position on the first circle.
+    phi2 = np.arctan2(y2 - yc2, x2 - xc2)#phi2 identifies the ending position on the second circle.
+    
+    sigma3 = -sigma1#This makes the middle arc turn in the opposite direction to the first arc.
+    
+    #Generate the three circular arcs
     xs1, ys1, dist1 = generate_arc_points(xc1, yc1, R, phi1, a13, sigma1, step_size=0.1)
     xs3, ys3, dist3 = generate_arc_points(xc3, yc3, R, a31, a32, sigma3, step_size=0.1)
     xs2, ys2, dist2 = generate_arc_points(xc2, yc2, R, a23, phi2, sigma2, step_size=0.1)
 
+    #The three arcs are concatenated to form the complete trajectory
     xtrajectory = xs1 + xs3[1:] + xs2[1:]
     ytrajectory = ys1 + ys3[1:] + ys2[1:]
     pathDistance = dist1 + dist3 + dist2
