@@ -5,7 +5,7 @@ def returnDubinsPath(x1, y1, psi1, x2, y2, psi2, R):
     best_dist = float('inf')
     best_path = (None, None, None)
 
-    #finding CSC trajectory
+    #finding CSC trajectory, setting the orientation left =1 right=-1
     for turnType in ["LSL", "RSR", "LSR", "RSL"]:
         if turnType == "LSL":
             sigma1, sigma2 = 1, 1
@@ -15,14 +15,15 @@ def returnDubinsPath(x1, y1, psi1, x2, y2, psi2, R):
             sigma1, sigma2 = 1, -1
         elif turnType == "RSL":
             sigma1, sigma2 = -1, 1
-            
+
+        #finding centers of the two circles of CSC trajectory
         xc1, yc1 = returnCircleCenter(x1, y1, psi1, sigma1, R)
         xc2, yc2 = returnCircleCenter(x2, y2, psi2, sigma2, R)
-        d = distance(xc1, xc2, yc1, yc2)
+        d = distance(xc1, xc2, yc1, yc2)#finding distance between two circle centers
         
         if turnType in ["LSR", "RSL"] and d < 2*R:#no path exists if d<2R or if 2R<=d<3R and turnType is LSR,RSR
             continue # Invalid
-
+       
         xt, yt, dist = calculateCSCTrajectory(x1, x2, xc1, xc2, y1, y2, yc1, yc2, psi1, psi2, R, turnType, sigma1, sigma2)
         if dist < best_dist:
             best_dist = dist
@@ -35,13 +36,14 @@ def returnDubinsPath(x1, y1, psi1, x2, y2, psi2, R):
         elif turnType == "RLR":
             sigma1, sigma2 = -1, -1
             
+        #finding distance between centers of the two circles of CSC trajectory
         xc1, yc1 = returnCircleCenter(x1, y1, psi1, sigma1, R)
         xc2, yc2 = returnCircleCenter(x2, y2, psi2, sigma2, R)
         d = distance(xc1, xc2, yc1, yc2)
         
-        if d > 4*R:
+        if d > 4*R:#no path exists if d>4R
             continue # Invalid
-            
+        #finding trajectory and path length  
         xt, yt, dist = calculateCCCTrajectory(x1, x2, xc1, xc2, y1, y2, yc1, yc2, psi1, psi2, R, sigma1, sigma2)
         if dist < best_dist:
             best_dist = dist
@@ -49,7 +51,7 @@ def returnDubinsPath(x1, y1, psi1, x2, y2, psi2, R):
 
     return best_path
 
-#below two fuctions are not used in the program
+#below two functions are not used in the program
 '''def findCSCTurnType(cp1, cp2):
     if cp1 <= 0 and cp2 >= 0:
         turn = "RSL"
@@ -223,7 +225,7 @@ def calculateCCCTrajectory(x1, x2, xc1, xc2, y1, y2, yc1, yc2, psi1, psi2, R, si
 
     return xtrajectory, ytrajectory, pathDistance
 
-
+#not sure where these two functions are used arleat not in this program
 def dubins_path_length(p1, p2, R):
     x1, y1, psi1 = p1
     x2, y2, psi2 = p2
