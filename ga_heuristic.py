@@ -1,34 +1,40 @@
-import numpy as np
-import random
+import numpy as np # Used for mathematical calculations such as square roots.
+import random # Used to make random choices while creating and changing routes.
 
-class GA_Heuristic:
-    def __init__(self, env):
-        self.env = env
+class GA_Heuristic:# Groups together the functions used to optimise a sensor visiting route.
+    def __init__(self, env): # Receive the environment containing sensor and base-station information.
+        self.env = env# Save the environment so all functions can use it.
         
+   '''This function creates multiple candidate routes.
+    - self: Refers to the current GA object.
+    - sensors: The sensors that this mobile sink must visit.
+    - pop_size=50: The function creates 50 candidate routes by default.'''     
     def generate_initial_population(self, sensors, pop_size=50):
         # 1. Polar Angle Evaluation (done in env, but let's sort them if needed)
         # 2. Random Partition
-        population = []
-        for _ in range(pop_size):
-            s_out = []
-            s_in = []
-            for s in sensors:
+        
+        population = []#Creates an empty list to store all the candidate routes.
+        for _ in range(pop_size):#loop repeats the process 50 times without creating a loop variable<-- the meaning of the underscore.
+            s_out = []#Creates an empty list for sensors in the outbound group.
+            s_in = []#Creates an empty list for sensors in the inbound group.
+            
+            for s in sensors:# Randomly decide which part of the route will contain this sensor.
                 if random.random() < 0.5:
-                    s_out.append(s)
+                    s_out.append(s)# Randomly Put 50% of the sensor in the outbound group.
                 else:
-                    s_in.append(s)
+                    s_in.append(s) # Randomly put the sensor in the inbound group.
                     
             # 3. Monotonic Sorting (The Heuristic)
             # Sort S_out strictly ascending order of radial distance
-            s_out.sort(key=lambda x: self.env.get_radial_distance(x))
+            s_out.sort(key=lambda x: self.env.get_radial_distance(x)# Sort outbound sensors from nearest to farthest from the base station.
             
             # Sort S_in strictly descending order of radial distance
-            s_in.sort(key=lambda x: self.env.get_radial_distance(x), reverse=True)
+            s_in.sort(key=lambda x: self.env.get_radial_distance(x), reverse=True)# Sort inbound sensors from farthest to nearest from the base station.
             
             # 4. Chromosome Assembly
             # pi = (S_0, pi_out, pi_in, S_0)
-            chromosome = s_out + s_in
-            population.append(chromosome)
+            chromosome = s_out + s_in# Join the outbound and inbound groups to create one candidate route.
+            population.append(chromosome)# Save this candidate route in the population.
             
         return population
         
