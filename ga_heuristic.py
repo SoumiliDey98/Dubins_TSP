@@ -94,37 +94,54 @@ class GA_Heuristic:# Groups together the functions used to optimise a sensor vis
         return maxima_count#Returns the number of peaks to the fitness function.
 
     def optimize(self, sensors, pop_size=50, generations=100):
+        # If no sensors are provided, there is no route to optimise
         if not sensors:
             return []
-            
+        # Create the initial set of candidate routes.     
         population = self.generate_initial_population(sensors, pop_size)
-        
+
+        # Repeat the optimisation process for the specified number of generations.
         for gen in range(generations):
             # Evaluate fitness
+            # Sort all routes from best (lowest fitness) to worst (highest fitness).
             population.sort(key=lambda ind: self.fitness(ind))
             
             # Select top 50%
             next_gen = population[:pop_size//2]
             
             # Crossover and Mutation to fill the rest
+            # Continue creating new routes until the next generation is full.
             while len(next_gen) < pop_size:
+                # Randomly select two parent routes from the best half.
                 p1, p2 = random.sample(population[:pop_size//2], 2)
                 
                 # Simple ordered crossover
+                #The program randomly chooses a position in the first parent route. If the parent contains only one sensor, it uses cut = 1
                 cut = random.randint(1, len(p1)-1) if len(p1) > 1 else 1
+                #p1[:cut] takes the first part of parent 1 and stores it in child.
                 child = p1[:cut]
+
+                #exampleParent 1: [A, B, C, D, E]
+                #Cut:       3
+                #Child:    [A, B, C]
+
+                # Add the sensors from parent 2 that are not already in the child.
+                # This helps ensure that a sensor is not visited twice.
                 for gene in p2:
                     if gene not in child:
                         child.append(gene)
                         
                 # Mutation (swap)
+                # With a 10% probability, make a small random change to the child.
                 if random.random() < 0.1 and len(child) > 1:
+                     # Choose two different positions in the route.
                     i, j = random.sample(range(len(child)), 2)
+                      # Swap the sensors at these positions.
                     child[i], child[j] = child[j], child[i]
                     
-                next_gen.append(child)
+                next_gen.append(child)# Add the newly created route to the next generation.
                 
-            population = next_gen
+            population = next_gen# Replace the old population with the new generation.
             
-        population.sort(key=lambda ind: self.fitness(ind))
-        return population[0] # Best sequence
+        population.sort(key=lambda ind: self.fitness(ind))# Sort the final population from best to worst route.
+        return population[0] # Best sequence# Return the route with the lowest fitness score.
