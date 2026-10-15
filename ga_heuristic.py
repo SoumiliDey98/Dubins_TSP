@@ -78,14 +78,20 @@ class GA_Heuristic:# Groups together the functions used to optimise a sensor vis
         # This helps us evaluate the route as a complete round trip.
         full_dists = [0] + distances + [0]
         for i in range(1, len(full_dists) - 1):
+            # Check each sensor to see whether it is farther from the base station
+            # than both the sensor before it and the sensor after it.
+            # example: Distances: Base Station (0) -> A (2) -> B (5) -> C (9) -> D (4) -> Base Station (0).
+            # Sensor C is the only peak because its distance (9) is greater than both neighbours (5 and 4).
             if full_dists[i] > full_dists[i-1] and full_dists[i] > full_dists[i+1]:
                 maxima_count += 1
                 
         # If it's a plateau, it's slightly more complex, but let's assume strictly greater for peak.
+        #example [2, 5, 5, 2]The two adjacent values of 5 form a flat peak. Neither one is strictly greater than the other, so the earlier test might not count any peak.
+        #This fallback says: if the route contains sensors but no strict peak was found, count one peak anyway.
         if maxima_count == 0 and len(distances) > 0:
             maxima_count = 1 # at least one peak if there are sensors
             
-        return maxima_count
+        return maxima_count#Returns the number of peaks to the fitness function.
 
     def optimize(self, sensors, pop_size=50, generations=100):
         if not sensors:
