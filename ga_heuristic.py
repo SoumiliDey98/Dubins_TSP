@@ -41,24 +41,28 @@ class GA_Heuristic:# Groups together the functions used to optimise a sensor vis
     def fitness(self, chromosome):
         # Fitness(pi) = L_euclid(pi) + m(pi) * pi * R
         # L_euclid:
-        l_euclid = 0
+        l_euclid = 0# Initialize the route length
         
         # S_0 to first
-        if len(chromosome) > 0:
+        if len(chromosome) > 0:#checks whether the route contains any sensors, then calculate the distance from the base station to the first sensor.
             l_euclid += np.sqrt((chromosome[0].x - self.env.base_station[0])**2 + (chromosome[0].y - self.env.base_station[1])**2)
             
-            for i in range(len(chromosome) - 1):
+            for i in range(len(chromosome) - 1):# Calculate the straight-line distance between every pair of
+                                                # consecutive sensors and add it to the total route length.
                 l_euclid += np.sqrt((chromosome[i+1].x - chromosome[i].x)**2 + (chromosome[i+1].y - chromosome[i].y)**2)
                 
-            # last to S_0
+            # last to S_0# Add the distance from the last sensor back to the base station.
             l_euclid += np.sqrt((chromosome[-1].x - self.env.base_station[0])**2 + (chromosome[-1].y - self.env.base_station[1])**2)
             
         # m(pi) is the number of radial maxima.
         # Since we strictly sort S_out ascending and S_in descending, the sequence reaches a maximum distance exactly once.
         # This mathematically guarantees m(pi) = 1 for the INITIAL population.
         # However, GA operations (crossover/mutation) might change it, so we need a function to count m(pi).
+        # Count the radial peaks in the route.
+        # More peaks mean a larger penalty in the fitness score.
         m_pi = self.count_radial_maxima(chromosome)
-        
+        # Add a penalty for each radial peak and return the total score.
+        # The genetic algorithm prefers routes with lower fitness values.
         return l_euclid + m_pi * np.pi * self.env.R
         
     def count_radial_maxima(self, chromosome):
