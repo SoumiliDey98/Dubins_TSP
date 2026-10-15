@@ -65,15 +65,17 @@ class GA_Heuristic:# Groups together the functions used to optimise a sensor vis
         # The genetic algorithm prefers routes with lower fitness values.
         return l_euclid + m_pi * np.pi * self.env.R
         
-    def count_radial_maxima(self, chromosome):
-        if len(chromosome) <= 1:
+    def count_radial_maxima(self, chromosome):#This function estimates how many peaks exist in the sequence of radial distances.
+        if len(chromosome) <= 1:# If there are zero or one sensors, return one peak by convention.
             return 1
-            
+        # Get the radial distance of each sensor in the visiting order. get_radial_distance() is obtained from environment.py file    
         distances = [self.env.get_radial_distance(s) for s in chromosome]
-        maxima_count = 0
+        maxima_count = 0# Initially, no radial peaks have been counted.
         
         # Check peaks in the sequence (including bounds conceptually if they drop to 0 at BS)
         # BS distance is 0. 
+        # Add the base station's radial distance (zero) at the start and end.
+        # This helps us evaluate the route as a complete round trip.
         full_dists = [0] + distances + [0]
         for i in range(1, len(full_dists) - 1):
             if full_dists[i] > full_dists[i-1] and full_dists[i] > full_dists[i+1]:
