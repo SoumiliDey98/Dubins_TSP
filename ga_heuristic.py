@@ -26,7 +26,7 @@ class GA_Heuristic:# Groups together the functions used to optimise a sensor vis
                     
             # 3. Monotonic Sorting (The Heuristic)
             # Sort S_out strictly ascending order of radial distance
-            s_out.sort(key=lambda x: self.env.get_radial_distance(x)# Sort outbound sensors from nearest to farthest from the base station.
+            s_out.sort(key=lambda x: self.env.get_radial_distance(x))# Sort outbound sensors from nearest to farthest from the base station.
             
             # Sort S_in strictly descending order of radial distance
             s_in.sort(key=lambda x: self.env.get_radial_distance(x), reverse=True)# Sort inbound sensors from farthest to nearest from the base station.
