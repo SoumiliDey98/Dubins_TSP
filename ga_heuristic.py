@@ -5,10 +5,10 @@ class GA_Heuristic:# Groups together the functions used to optimise a sensor vis
     def __init__(self, env): # Receive the environment containing sensor and base-station information.
         self.env = env# Save the environment so all functions can use it.
         
-   '''This function creates multiple candidate routes.
-    - self: Refers to the current GA object.
-    - sensors: The sensors that this mobile sink must visit.
-    - pop_size=50: The function creates 50 candidate routes by default.'''     
+        '''This function creates multiple candidate routes.
+            - self: Refers to the current GA object.
+            - sensors: The sensors that this mobile sink must visit.
+            - pop_size=50: The function creates 50 candidate routes by default.'''     
     def generate_initial_population(self, sensors, pop_size=50):
         # 1. Polar Angle Evaluation (done in env, but let's sort them if needed)
         # 2. Random Partition
