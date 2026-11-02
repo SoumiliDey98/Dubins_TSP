@@ -21,7 +21,7 @@ def estimate_workload(env, partition):
     # The paper's GA heuristic fitness is also a good proxy.
     
     # Let's use the GA heuristic fitness directly as an estimate of travel length
-    from ga_heuristic import GA_Heuristic
+    from Dubins_TSP_Antigravity.ga_heuristic import GA_Heuristic
     ga = GA_Heuristic(env)
     
     # Just sort by polar angle to get a quick valid TSP-like tour length

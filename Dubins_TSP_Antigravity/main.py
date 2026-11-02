@@ -1,14 +1,14 @@
 import numpy as np
-from environment import Environment, Sensor, Obstacle
-from ga_heuristic import GA_Heuristic
-from partitioning import geodesic_spectral_partitioning, estimate_workload
+from Dubins_TSP_Antigravity.environment import Environment, Sensor, Obstacle
+from Dubins_TSP_Antigravity.ga_heuristic import GA_Heuristic
+from Dubins_TSP_Antigravity.partitioning import geodesic_spectral_partitioning, estimate_workload
 
 def compute_T(env, route):
     if not route:
         return 0
     # Recalculate using the heuristic fitness function logic
     # T = L/v + sum(tau)
-    from ga_heuristic import GA_Heuristic
+    from Dubins_TSP_Antigravity.ga_heuristic import GA_Heuristic
     ga = GA_Heuristic(env)
     
     # We shouldn't use GA fitness directly for time, we just need the length of the specific route
@@ -223,6 +223,6 @@ if __name__ == "__main__":
     routes = overall_algorithm(env)
     
     # Import and run visualizer
-    from visualize import animate_solution
+    from Dubins_TSP_Antigravity.visualize import animate_solution
     print("Starting visual animation...")
     animate_solution(env, routes)

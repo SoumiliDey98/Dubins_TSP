@@ -221,7 +221,7 @@ def animate_solution(env, routes):
         all_trajectories[k] = traj
         
     # Resolve Inter-Robot Collisions using Game Theory
-    from corridor_game import game_theory_resolve
+    from Dubins_TSP_Antigravity.corridor_game import game_theory_resolve
     all_trajectories = game_theory_resolve(env, all_trajectories, safe_dist=3.0)
 
     max_steps = max((len(t) for t in all_trajectories.values()), default=0)

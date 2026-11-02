@@ -510,7 +510,7 @@ def _straight(p0, p1, step):
 
 
 if __name__ == "__main__":
-    from environment import Environment
+    from Dubins_TSP_Antigravity.environment import Environment
 
     # Base station far away so that its exemption zone plays no role in the examples.
     demo_env = Environment(base_station_pos=(50.0, -100.0), budget=1000, velocity=5.0,
