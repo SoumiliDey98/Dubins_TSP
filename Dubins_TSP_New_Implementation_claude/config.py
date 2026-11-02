@@ -26,6 +26,10 @@ def default_params(**changes):
         "n_obstacles": (10, 15),
         "n_sensors": (90, 110),
         "tau": (1.0, 5.0),                 # dwell time tau_i ~ uniform [s]
+        "sensor_layout": "obstacles",      # "obstacles": many sensors close to obstacles; "uniform": spread out
+        "near_share": 0.6,                 # share of sensors placed close to obstacles
+        "near_gap": (3.0, 7.0),            # their distance from the obstacle boundary [m] (lower bound > r_safe)
+        "concave_share": 0.5,              # share of those placed around the concave (inner) corners of obstacles
         # Trajectories
         "dt": 0.5,                         # time between frames [s]
         "ds": 0.25,                        # sampling step along a Dubins path [m]

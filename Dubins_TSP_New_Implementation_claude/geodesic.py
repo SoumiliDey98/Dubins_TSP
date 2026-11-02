@@ -5,6 +5,11 @@ turn. The corners of the inflated obstacles, the base station and the sensors
 are joined whenever they can see each other (a visibility graph), and Dijkstra
 gives the shortest obstacle-free distance and path between every pair of
 terminals. Terminal 0 is the base station; terminal i + 1 is sensor i.
+
+Sensors may lie closer to an obstacle than r_plan (for example in the pocket of
+a C-shaped obstacle). A line that starts or ends at a terminal therefore only
+has to stay outside the obstacles inflated by r_safe + 0.5 m; lines between two
+corners keep the full turning room r_plan.
 """
 import numpy as np
 import shapely
@@ -18,11 +23,19 @@ def inflate(obstacles, r):
     return [Polygon(o).buffer(r, quad_segs=2) for o in obstacles]
 
 
-def build(scen, p):
+def _inside(polys):
+    """Union of the polygons' insides (boundaries excluded), ready for fast tests."""
+    u = shapely.union_all([g.buffer(-1e-6) for g in polys])
+    shapely.prepare(u)
+    return u
+
+
+def build(scen, p, require_all=True):
     """Return {"nodes", "D", "pred", "n_terminals", "obstacles"}: D[a, b] is the geodesic
     distance between terminals a and b; pred is used by path(); "obstacles" is the union
     of the original (not inflated) obstacles, used for clearance checks."""
     terminals = np.vstack([scen["base"], scen["xy"]])
+    n_t = len(terminals)
     grown = inflate(scen["obstacles"], p["r_plan"])
     nodes = np.vstack([terminals] + [np.array(g.exterior.coords[:-1]) for g in grown])
 
@@ -30,20 +43,18 @@ def build(scen, p):
     # the inside of an inflated obstacle (running along its boundary is allowed).
     i, j = np.triu_indices(len(nodes), 1)
     lines = shapely.linestrings(np.stack([nodes[i], nodes[j]], axis=1))
+    visible = np.ones(len(i), dtype=bool)
     if grown:
-        inside = shapely.union_all([g.buffer(-1e-6) for g in grown])
-        shapely.prepare(inside)
-        visible = ~shapely.intersects(lines, inside)
-    else:
-        visible = np.ones(len(i), dtype=bool)
+        term = (i < n_t) | (j < n_t)
+        visible[term] = ~shapely.intersects(lines[term], _inside(inflate(scen["obstacles"], p["r_safe"] + 0.5)))
+        visible[~term] = ~shapely.intersects(lines[~term], _inside(grown))
     i, j = i[visible], j[visible]
     length = np.hypot(*(nodes[i] - nodes[j]).T)
     graph = csr_matrix((length, (i, j)), shape=(len(nodes), len(nodes)))
 
-    n_t = len(terminals)
     dist, pred = dijkstra(graph, directed=False, indices=np.arange(n_t), return_predecessors=True)
     D = dist[:, :n_t]
-    if not np.all(np.isfinite(D)):
+    if require_all and not np.all(np.isfinite(D)):
         raise ValueError("some sensors cannot be reached from the base station")
     obstacles = shapely.union_all([Polygon(o) for o in scen["obstacles"]]) if scen["obstacles"] else None
     if obstacles is not None:

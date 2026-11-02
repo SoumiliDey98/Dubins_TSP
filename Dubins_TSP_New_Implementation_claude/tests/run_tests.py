@@ -62,12 +62,23 @@ def test_geodesic_distances():
     E = np.hypot(*(T[:, None] - T[None]).transpose(2, 0, 1))
     assert np.all(geo["D"] >= E - 1e-9)                          # never shorter than a straight line
     assert np.allclose(geo["D"], geo["D"].T)
-    inflated = geodesic.inflate(scen["obstacles"], P["r_plan"])
-    from shapely.geometry import LineString
-    for b in range(1, 30):                                       # paths avoid the inflated obstacles
+    for b in range(1, len(T)):                                   # paths keep r_safe from the obstacles
         pts = geodesic.path(geo, 0, b)
         assert abs(np.sum(np.hypot(*np.diff(pts, axis=0).T)) - geo["D"][0, b]) < 1e-6
-        assert all(LineString(pts).intersection(g.buffer(-1e-3)).is_empty for g in inflated)
+        assert trajectory.clearance(pts, geo) >= P["r_safe"]
+
+
+def test_scenario_puts_sensors_around_obstacles():
+    from shapely.geometry import Point, Polygon
+    from shapely.ops import unary_union
+    scen, _ = _map()
+    polys = [Polygon(o) for o in scen["obstacles"]]
+    d = np.array([unary_union(polys).distance(Point(x)) for x in scen["xy"]])
+    inner = np.vstack([c for c in (scenario._inner_corners(q) for q in polys) if len(c)])
+    near_corner = [np.min(np.hypot(*(inner - x).T)) <= 8 for x in scen["xy"]]
+    assert scen["n_near"] >= 0.4 * len(scen["xy"])               # most of near_share made it
+    assert np.sum(d <= P["near_gap"][1]) >= scen["n_near"] and d.min() >= P["near_gap"][0] - 1e-9
+    assert sum(near_corner) >= 5                                   # some around concave corners
 
 
 def test_geodesic_without_obstacles_is_straight():

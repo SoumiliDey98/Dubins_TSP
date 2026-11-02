@@ -1,7 +1,7 @@
 """Conflict detection (eq. 20) and the GO / WAIT / DETOUR conflict game (Section 0.10).
 
-Adapted from corridor_game_gt.py in the repository root (same game; its theory
-is in Corridor_Game_Theory.pdf), with the rules of Dubins_TSP.pdf:
+Adapted from theory_claude/corridor_game_gt.py (same game; its theory is in
+theory_claude/Corridor_Game_Theory.pdf), with the rules of Dubins_TSP.pdf:
   - eq. (20) applies only while both sinks are on their mission, t <= min(T_k, T_l);
   - a strategy that makes a sink exceed the budget B is rejected (Section 0.10,
     step 6), so WAIT may only use the time left in the budget.
@@ -131,15 +131,16 @@ def detour_traj(P, s, f, f_end, e, side, geo, p):
     tan = np.gradient(Q, axis=0)
     tan /= np.maximum(np.hypot(*tan.T)[:, None], EPS)
     new_path = Q + side * h * prof[:, None] * np.column_stack([tan[:, 1], -tan[:, 0]])
-    joined = np.vstack([P[s - 1:s], new_path, P[e + 1:e + 2]])
-    if trajectory.max_curvature(joined) > (1 + p["curvature_tol"]) / R:
-        return None
-    if geo["obstacles"] is not None and shapely.distance(LineString(new_path), geo["obstacles"]) < p["r_safe"]:
-        return None
     frames = _resample(new_path, p["v"] * p["dt"])
     short = (e - s + 1) - len(frames)                      # never faster than GO
     if short > 0:
         frames = np.vstack([frames, np.repeat(frames[-1:], short, axis=0)])
+    # Check exactly what the sink will follow: the re-timed frames joined to their neighbours.
+    joined = np.vstack([P[s - 1:s], frames, P[e + 1:e + 2]])
+    if trajectory.max_curvature(joined) > (1 + p["curvature_tol"]) / R:
+        return None
+    if geo["obstacles"] is not None and shapely.distance(LineString(joined), geo["obstacles"]) < p["r_safe"]:
+        return None
     extra = float(np.sum(np.hypot(*np.diff(new_path, axis=0).T))) - total
     return np.vstack([P[:s], frames, P[e + 1:]]), extra
 

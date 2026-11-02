@@ -2,7 +2,8 @@
 
 1. Waypoints: base -> sensors -> base, joined by the geodesic (corner-to-corner)
    paths. Corners closer than R to a neighbouring waypoint are dropped, so the
-   Dubins curves do not need small loops.
+   Dubins curves do not need small loops, unless the shortcut would pass too
+   close to an obstacle.
 2. Headings (the decision variables theta of Section 0.5): at every waypoint the
    heading is chosen from a discrete set (16 directions plus the bisector of the
    incoming and outgoing directions) by dynamic programming, so that the total
@@ -25,15 +26,20 @@ import geodesic
 HEADINGS = np.linspace(-np.pi, np.pi, 16, endpoint=False)
 
 
-def waypoints(order, geo, R):
-    """Points the sink must pass, and for each one the sensor index (or -1 for corners and the base)."""
+def waypoints(order, geo, p):
+    """Points the sink must pass, and for each one the sensor index (or -1 for corners and the base).
+    A corner closer than R to its neighbours is skipped (it would force a small loop), unless
+    the shortcut would pass closer than r_safe + 0.5 m to an obstacle."""
     terms = [0] + [i + 1 for i in order] + [0]
     pts, sensor = [geo["nodes"][0]], [-1]
     for a, b in zip(terms[:-1], terms[1:]):
         leg = geodesic.path(geo, a, b)
-        for c in leg[1:-1]:
-            if np.hypot(*(c - pts[-1])) >= R and np.hypot(*(c - leg[-1])) >= R:
-                pts.append(c)
+        for m in range(1, len(leg) - 1):
+            close = np.hypot(*(leg[m] - pts[-1])) < p["R"] or np.hypot(*(leg[m] - leg[-1])) < p["R"]
+            shortcut_ok = geo["obstacles"] is None or \
+                shapely.distance(LineString([pts[-1], leg[m + 1]]), geo["obstacles"]) >= p["r_safe"] + 0.5
+            if not (close and shortcut_ok):
+                pts.append(leg[m])
                 sensor.append(-1)
         pts.append(leg[-1])
         sensor.append(b - 1)
@@ -107,7 +113,7 @@ def choose_headings(pts, geo, p):
 
 def build(order, geo, scen, p):
     """Trajectory of one sink: {"order", "frames" (F, 2), "path" (dense polyline), "L", "T"}."""
-    pts, sensor = waypoints(order, geo, p["R"])
+    pts, sensor = waypoints(order, geo, p)
     h = choose_headings(pts, geo, p)
     knot_t, knot_xy = [0.0], [pts[0]]
     t = L = 0.0
