@@ -17,6 +17,7 @@ python planner.py --seed 1               # summary + output/seed1.png
 python planner.py --seed 1 --budget 100  # another mission budget B (seconds)
 python planner.py --seed 1 --gif         # also output/seed1.gif (slow)
 python planner.py --seed 1 --resolver simple   # "wait your turn" instead of the game; output/seed1_simple.png
+python planner.py --seed 1 --dubins pdf  # turn-type rule of Section 0.13; output/seed1_pdf.png
 python tests/run_tests.py                # all tests, about 2 minutes
 ```
 
@@ -30,7 +31,7 @@ To change any parameter, edit `config.py` or pass it to
 | `config.py` | 0.2–0.7 | All parameters. R = wheelbase / tan(δ_max) (eq. 7), r_safe = w/2 + δ_margin (eq. 5). |
 | `scenario.py` | 0.2, 0.4 | Seeded random map: disjoint polygon obstacles, sensors with dwell times τᵢ, many of them close to the obstacles and around their concave corners. |
 | `geodesic.py` | eq. 9, 0.9 step 1, 0.11 step 2 | Visibility graph around obstacles inflated by r_safe + R, then Dijkstra: geodesic distance and path between every pair of sensors and the base. |
-| `dubins_path.py` | 0.1, 0.12–0.13 | Shortest Dubins path between two poses: all six words, keep the shortest. |
+| `dubins_path.py` | 0.1, 0.12–0.13 | Dubins path between two poses. By default all six words are computed and the shortest is kept, which differs from Section 0.13; `dubins_method="pdf"` uses the rule of Section 0.13 (see the comparison below). |
 | `trajectory.py` | 0.5, eq. 17, eq. 19 | Tour → waypoints → headings → Dubins legs → positions every dt seconds. T_k = L_k/v + Σ τᵢ. |
 | `ga_tour.py` | 0.8 | Radially unimodal GA: initial tours with one radial peak; fitness = L_euclid + m(π)·π·R. |
 | `partition.py` | 0.9 | Geodesic spectral bisection with the min–max workload threshold. |
@@ -62,6 +63,7 @@ To change any parameter, edit `config.py` or pass it to
 | Free space for route finding | Lines between obstacle corners stay outside the obstacles inflated by r_plan = r_safe + R, which leaves room to turn. A line that starts or ends at a sensor only has to stay r_safe + 0.5 m away, so sensors close to obstacles can be reached. Clearance of the final path is checked against r_safe (eq. 19). |
 | Corners | A corner closer than R to its neighbouring waypoints is skipped, to avoid tiny loops, unless the shortcut would pass closer than r_safe + 0.5 m to an obstacle. |
 | Headings θ (Section 0.5) | At each waypoint, chosen from 16 directions plus the bisector of the turn, by dynamic programming. The choice minimises the tour's Dubins length, and each leg must keep r_safe from the obstacles. If no such choice exists, the bisectors are used and the check reports the problem. |
+| Open cases of the Section 0.13 rule (`dubins_method="pdf"`) | If the chosen word does not exist (LSR or RSL with S_tan < 2R), the shortest existing word is used. cp2 = 0 counts as a left turn, as in `findCSCTurnType` of the original `dubins.py`. Geometry is exact and closed-form in both modes: the Δψ stepping of Section 0.13.1 is not used, so only the choice of word follows the paper. |
 | GA fitness | Exactly as in the paper: straight-line length + m(π)·π·R. The radial distance rᵢ is geodesic (eq. 9). |
 | σ in the affinity matrix | σ = max(mean geodesic nearest-neighbour spacing, R). Gaps smaller than the turning radius cannot shorten a Dubins tour. |
 | Workload T̂ | A sweep tour in polar-angle order with geodesic legs, divided by v, plus Σ τ. |
@@ -75,7 +77,7 @@ To change any parameter, edit `config.py` or pass it to
 - Every sensor is served exactly once.
 - T_k = L_k/v + Σ τᵢ exactly.
 - Every accepted tour has T_k ≤ B, and the game never pushes a sink over B. If this cannot hold, it is reported: a sensor too far to reach alone, or more than K_max sinks needed.
-- Dubins legs are the shortest for their end poses.
+- Dubins legs are the shortest for their end poses (with the default `dubins_method="shortest"`; the rule of Section 0.13 does not guarantee this).
 - Headings are the best ones within the candidate set.
 - Every leg chosen by the heading search, and every DETOUR, keeps r_safe from the obstacles. The bisector fallback is the one exception, and it is reported.
 - The game is an exact potential game, so best response always stops at a pure Nash equilibrium (proof in `theory_claude/Corridor_Game_Theory.pdf`, numerical check in the tests).
@@ -129,6 +131,28 @@ are not guarantees.
 | Extra distance, all maps | 4.9 m | 0 m |
 
 Coverage, budget, obstacle clearance and turning radius held on every map with both methods. On its own the game clearly removes more conflicts. With the repair step the two are close, and neither is better on every measure; 10 maps are too few to rank them. Compare any map with `python planner.py --seed N --no-plot` and the same command with `--resolver simple`.
+
+## Shortest of six or the rule of Section 0.13? (measured on the same 10 maps)
+
+`dubins_method="shortest"` is the default. `dubins_method="pdf"` picks the word from the signs of cp1 and cp2 and from S_tan, as Section 0.13 describes. Each method plans its own routes on seeds 1–10, with the conflict game. All values are totals over the 10 maps unless stated.
+
+| | Shortest of six | Rule of Section 0.13 |
+|---|---|---|
+| Sinks K | 155 | 156 |
+| L_total | 28827 m | 29506 m (+2.4 %, longer on every map) |
+| Conflicting pairs left | 3 | 2 |
+| Risk left | 3.0 s | 1.0 s |
+| Maps with no conflict | 8 of 10 | 8 of 10 |
+| Worst closest approach (d_safe = 3 m) | 0.28 m | 1.30 m |
+| Lowest obstacle clearance (r_safe = 2 m) | 2.02 m | 2.01 m |
+| Highest curvature × R | 1.014 | 1.019 |
+
+- **Same visiting orders:** rebuilding the 155 tours of the default plan with the rule gives 28822 m → 29328 m (+1.8 %), and 2 of them then exceed B. This isolates the rule from differences in GA runs and splits.
+- **Legs of the final plans with the rule (1509):** the rule's word was also the shortest for those poses on 1504 of them, and it chose a word that does not exist on 61 (4.0 %), where the fallback applied. The heading search avoids poses where the rule does badly, so the cost appears as less favourable headings, not as bad individual legs.
+- **Conflicts:** the differences are small and come from routes that differ, so they do not show that either method separates sinks better.
+- Coverage, budget, obstacle clearance and turning radius held on every map with both methods.
+
+Reproduce K, T_max, L_total and the final conflicts of a map with `python planner.py --seed N --no-plot --dubins pdf`.
 
 ## Differences from the original code in the repository root
 

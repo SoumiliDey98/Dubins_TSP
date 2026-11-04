@@ -4,6 +4,7 @@
     python planner.py --seed 1 --budget 100    # another mission budget B
     python planner.py --seed 1 --gif           # also save an animation
     python planner.py --seed 1 --resolver simple   # "wait your turn" instead of the conflict game
+    python planner.py --seed 1 --dubins pdf        # turn-type rule of Section 0.13 instead of the shortest of six
 """
 import argparse
 import os
@@ -133,7 +134,8 @@ def report(out):
                 eq[name] = eq.get(name, 0) + 1
         how = f"conflict games: {len(res['games'])}, choices {eq}"
     lines = [
-        f"sensors {len(out['scenario']['xy'])}, obstacles {len(out['scenario']['obstacles'])}, budget B = {p['B']} s",
+        f"sensors {len(out['scenario']['xy'])}, obstacles {len(out['scenario']['obstacles'])}, budget B = {p['B']} s,"
+        f" Dubins method: {p['dubins_method']}",
         f"objectives:  K = {c['K']} sinks,  T_max = {c['T_max']:.1f} s,  L_total = {c['L_total']:.0f} m",
         f"coverage (eq. 15-16): {'ok' if c['coverage_ok'] else 'FAILED'}   budget (eq. 18): {'ok' if c['budget_ok'] else 'FAILED'}"
         f"   K <= K_max: {'ok' if c['K_ok'] else 'FAILED'}",
@@ -156,15 +158,17 @@ def main():
     ap.add_argument("--gif", action="store_true", help="also save an animation (slow)")
     ap.add_argument("--no-plot", action="store_true")
     ap.add_argument("--resolver", choices=["game", "simple"], default="game", help="how conflicts between sinks are resolved")
+    ap.add_argument("--dubins", choices=["shortest", "pdf"], default="shortest", help="how the Dubins word of a leg is chosen")
     args = ap.parse_args()
-    p = default_params(resolver=args.resolver) if args.budget is None else default_params(resolver=args.resolver, B=args.budget)
+    changes = {} if args.budget is None else {"B": args.budget}
+    p = default_params(resolver=args.resolver, dubins_method=args.dubins, **changes)
     out = run(args.seed, p)
     print(report(out))
     if not args.no_plot:
         import plot
         folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
         os.makedirs(folder, exist_ok=True)
-        name = f"seed{args.seed}" + ("_simple" if args.resolver == "simple" else "")
+        name = f"seed{args.seed}" + ("_simple" if args.resolver == "simple" else "") + ("_pdf" if args.dubins == "pdf" else "")
         path = os.path.join(folder, f"{name}.png")
         plot.routes(out, path)
         print(f"figure: {path}")

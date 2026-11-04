@@ -16,6 +16,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))                       # the new implementation
 sys.path.append(os.path.dirname(os.path.dirname(HERE)))         # repository root (read-only reference)
 
+import compare_dubins
 import conflict_game as cg
 import dubins_path
 import ga_tour
@@ -53,6 +54,57 @@ def test_dubins_matches_original_and_ends_at_target():
         assert np.hypot(*(xy[-1] - q1[:2])) < 1e-9
         assert abs((th - q1[2] + math.pi) % (2 * math.pi) - math.pi) < 1e-9
         assert abs(s[-1] - length) < 1e-9 and np.all(np.diff(s) <= 0.25 + 1e-12)
+
+
+def test_pdf_rule_picks_the_word_of_section_0_13():
+    R = P["R"]                                                   # = 5 m
+    h = math.pi / 2
+    for q1, word in [((40, 5, h), "LSL"), ((40, -5, -h), "RSR"), ((40, 5, -h), "LSR"), ((40, -5, h), "RSL"),
+                     ((17, 5, h), "LRL"), ((17, -5, -h), "RLR")]:     # the last two: 2R <= S_tan = 12 m < 3R
+        assert dubins_path.select((0, 0, 0), q1, R, "pdf")[0] == word, (q1, word)
+
+
+def test_pdf_rule_falls_back_when_its_word_does_not_exist():
+    q0, q1 = (0, 0, 0), (7.5, 0, math.pi)                        # the rule picks RSL, but S_tan = 1.5 R < 2R
+    assert dubins_path.pdf_word(q0, q1, P["R"]) == "RSL"
+    assert dubins_path.select(q0, q1, P["R"], "pdf")[2] == dubins_path.shortest(q0, q1, P["R"])[2]
+
+
+def test_pdf_rule_paths_reach_the_target_and_tables_agree():
+    rng = np.random.default_rng(0)
+    R = P["R"]
+    for _ in range(500):
+        q0 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
+        q1 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
+        word, seg, length = dubins_path.select(q0, q1, R, "pdf")
+        assert length >= dubins_path.shortest(q0, q1, R)[2] - 1e-9
+        assert abs(length - dubins_path.lengths(q0[:2], q0[2], q1[:2], q1[2], R, "pdf")) < 1e-9
+        xy, _, th = dubins_path.sample(q0, word, seg, R, 0.25)
+        assert np.hypot(*(xy[-1] - q1[:2])) < 1e-9
+        assert abs((th - q1[2] + math.pi) % (2 * math.pi) - math.pi) < 1e-9
+    h0, h1 = rng.uniform(-math.pi, math.pi, 5), rng.uniform(-math.pi, math.pi, 7)
+    table = dubins_path.lengths((0.0, 0.0), h0[:, None], (9.0, 4.0), h1[None, :], R, "pdf")
+    for i, j in np.ndindex(table.shape):
+        assert abs(table[i, j] - dubins_path.select((0.0, 0.0, h0[i]), (9.0, 4.0, h1[j]), R, "pdf")[2]) < 1e-9
+
+
+def test_compare_counts_fallback_legs_as_missing_not_shortest():
+    """The kind comes from the rule's own word, checked here against the table of all six words."""
+    R = P["R"]
+    assert compare_dubins.classify_leg((0, 0, 0), (7.5, 0, math.pi), R) == "missing"     # RSL with S_tan = 1.5 R
+    rng = np.random.default_rng(0)
+    seen = set()
+    for _ in range(500):
+        q0 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
+        q1 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
+        a, b, d = dubins_path._relative(q0[:2], q0[2], q1[:2], q1[2], R)
+        totals = {w: float(sum(seg)) * R for w, seg in dubins_path._words(a, b, d).items()}
+        rule = totals[dubins_path.pdf_word(q0, q1, R)]
+        expected = ("missing" if not math.isfinite(rule) else
+                    "shortest" if rule <= min(totals.values()) + 1e-9 else "longer")
+        assert compare_dubins.classify_leg(q0, q1, R) == expected
+        seen.add(expected)
+    assert seen == set(compare_dubins.LEG_KINDS)
 
 
 # ---------------------------------------------------------------- geodesic distances (eq. 9)
@@ -248,6 +300,15 @@ def test_end_to_end(seeds=(1, 2, 3)):
         print(f"      seed {seed}: K={c['K']} T_max={c['T_max']:.1f}s L_total={c['L_total']:.0f}m "
               f"conflict pairs {len(out['result']['before']['pairs'])}->{c['conflict_pairs']} "
               f"closest {c['closest']:.2f}m clearance {c['clearance']:.2f}m")
+
+
+def test_end_to_end_with_pdf_rule():
+    p = default_params(dubins_method="pdf")
+    out = planner.run(1, p)
+    c = out["checks"]
+    assert c["coverage_ok"] and c["budget_ok"] and c["K_ok"] and not c["problems"], c
+    assert c["clearance"] >= p["r_safe"] and c["curvature_x_R"] <= 1 + p["curvature_tol"], c
+    print(f"      seed 1: K={c['K']} T_max={c['T_max']:.1f}s L_total={c['L_total']:.0f}m")
 
 
 def test_same_seed_same_result():

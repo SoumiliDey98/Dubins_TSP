@@ -33,6 +33,7 @@ def default_params(**changes):
         # Trajectories
         "dt": 0.5,                         # time between frames [s]
         "ds": 0.25,                        # sampling step along a Dubins path [m]
+        "dubins_method": "shortest",       # "shortest": best of the six words; "pdf": turn-type rule of Section 0.13
         # Genetic algorithm (Section 0.8)
         "pop_size": 50,
         "generations": 100,

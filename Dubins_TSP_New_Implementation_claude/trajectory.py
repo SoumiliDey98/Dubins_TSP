@@ -9,7 +9,8 @@
    incoming and outgoing directions) by dynamic programming, so that the total
    Dubins length is as short as possible and every leg keeps r_safe from the
    obstacles (eq. 19).
-3. Consecutive poses are joined by the shortest Dubins path.
+3. Consecutive poses are joined by a Dubins path, chosen as p["dubins_method"] says
+   (by default the shortest one).
 4. Time: t = arc length / v, plus a stop of tau_i at sensor i, so that
    T_k = L_k / v + sum of tau_i            (eq. 17)
 5. The position is read every dt seconds ("frames"); all sinks start at t = 0.
@@ -73,7 +74,7 @@ def _leg_clear(q0, q1, length, room, obstacles, p):
     c = math.hypot(q1[0] - q0[0], q1[1] - q0[1])
     if math.sqrt(max(length ** 2 - c ** 2, 0.0)) / 2 <= room - p["r_safe"]:
         return True
-    word, seg, _ = dubins_path.shortest(q0, q1, p["R"])
+    word, seg, _ = dubins_path.select(q0, q1, p["R"], p["dubins_method"])
     xy, _, _ = dubins_path.sample(q0, word, seg, p["R"], p["ds"])
     return shapely.distance(LineString(xy), obstacles) >= p["r_safe"]
 
@@ -87,7 +88,7 @@ def choose_headings(pts, geo, p):
     cost = np.zeros(len(cand[0]))
     back = []
     for k in range(1, len(pts)):
-        L = dubins_path.lengths(pts[k - 1], cand[k - 1][:, None], pts[k], cand[k][None, :], p["R"])
+        L = dubins_path.lengths(pts[k - 1], cand[k - 1][:, None], pts[k], cand[k][None, :], p["R"], p["dubins_method"])
         total = cost[:, None] + L
         room = (shapely.distance(LineString(pts[k - 1:k + 1]), geo["obstacles"])
                 if geo["obstacles"] is not None else math.inf)
@@ -119,7 +120,7 @@ def build(order, geo, scen, p):
     t = L = 0.0
     for k in range(len(pts) - 1):
         q0, q1 = (*pts[k], h[k]), (*pts[k + 1], h[k + 1])
-        word, seg, length = dubins_path.shortest(q0, q1, p["R"])
+        word, seg, length = dubins_path.select(q0, q1, p["R"], p["dubins_method"])
         xy, s, _ = dubins_path.sample(q0, word, seg, p["R"], p["ds"])
         knot_t.extend(t + s[1:] / p["v"])
         knot_xy.extend(xy[1:])

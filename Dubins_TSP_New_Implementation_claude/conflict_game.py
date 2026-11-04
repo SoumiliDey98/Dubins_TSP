@@ -135,14 +135,16 @@ def detour_traj(P, s, f, f_end, e, side, geo, p):
     short = (e - s + 1) - len(frames)                      # never faster than GO
     if short > 0:
         frames = np.vstack([frames, np.repeat(frames[-1:], short, axis=0)])
-    # Check exactly what the sink will follow: the re-timed frames joined to their neighbours.
-    joined = np.vstack([P[s - 1:s], frames, P[e + 1:e + 2]])
-    if trajectory.max_curvature(joined) > (1 + p["curvature_tol"]) / R:
+    new_traj = np.vstack([P[:s], frames, P[e + 1:]])
+    # Curvature over the whole trajectory, as the final check measures it: frames next to the
+    # detour may be parked at a sensor, and then only earlier frames show the incoming direction.
+    if trajectory.max_curvature(new_traj) > (1 + p["curvature_tol"]) / R:
         return None
+    joined = np.vstack([P[s - 1:s], frames, P[e + 1:e + 2]])
     if geo["obstacles"] is not None and shapely.distance(LineString(joined), geo["obstacles"]) < p["r_safe"]:
         return None
     extra = float(np.sum(np.hypot(*np.diff(new_path, axis=0).T))) - total
-    return np.vstack([P[:s], frames, P[e + 1:]]), extra
+    return new_traj, extra
 
 
 def strategies(k, trajs, T, s, f, f_end, e, geo, p):
