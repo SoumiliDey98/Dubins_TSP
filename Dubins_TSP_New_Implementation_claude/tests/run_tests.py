@@ -23,6 +23,7 @@ import geodesic
 import partition
 import planner
 import scenario
+import simple_resolver
 import trajectory
 from config import default_params
 
@@ -186,6 +187,53 @@ def test_game_respects_the_budget():
     trajs = {0: _line((0, 50), (100, 50)), 1: _line((50, 0), (50, 100))}
     _, T2, _, _ = cg.resolve(trajs, {0: 20.0, 1: 20.0}, {0: 100.0, 1: 100.0}, {"obstacles": None}, p)
     assert all(t <= p["B"] + 1e-9 for t in T2.values())
+
+
+# ---------------------------------------------------------------- simple resolver ("wait your turn")
+
+def test_simple_resolver_crossing_one_sink_waits():
+    p = default_params(base=(50.0, -100.0), B=1000.0)
+    trajs = {0: _line((0, 50), (100, 50)), 1: _line((50, 0), (50, 100))}
+    T, L = {0: 20.0, 1: 21.0}, {0: 100.0, 1: 100.0}
+    new, T2, L2, stops = simple_resolver.resolve(trajs, T, L, {"obstacles": None}, p)
+    assert cg.summary(new, p)["exposure"] == 0.0                 # the independent check agrees
+    assert [s["sink"] for s in stops] == [0]                     # the longer tour (sink 1) never waits
+    assert T2[1] == 21.0 and T2[0] == 20.0 + stops[0]["wait"] and L2 == L
+    assert np.array_equal(new[1], trajs[1])
+
+
+def test_simple_resolver_only_changes_timing():
+    p = default_params(base=(50.0, -100.0), B=1000.0)
+    trajs = {0: _line((0, 50), (100, 50)), 1: _line((50, 0), (50, 100))}
+    new, _, _, _ = simple_resolver.resolve(trajs, {0: 20.0, 1: 20.0}, {0: 100.0, 1: 100.0}, {"obstacles": None}, p)
+    for k in trajs:                                              # same path, repeated positions only
+        q = new[k][np.concatenate([[True], np.hypot(*np.diff(new[k], axis=0).T) > 1e-9])]
+        assert np.array_equal(q, trajs[k])
+
+
+def test_simple_resolver_respects_the_budget():
+    p = default_params(base=(50.0, -100.0), B=20.5)              # 0.5 s of slack only
+    trajs = {0: _line((0, 50), (100, 50)), 1: _line((50, 0), (50, 100))}
+    _, T2, _, _ = simple_resolver.resolve(trajs, {0: 20.0, 1: 20.0}, {0: 100.0, 1: 100.0}, {"obstacles": None}, p)
+    assert all(t <= p["B"] + 1e-9 for t in T2.values())
+
+
+def test_simple_resolver_reports_what_it_cannot_solve():
+    """Head-on on one line: waiting cannot help, the other sink drives through. No stops; the conflict stays visible."""
+    p = default_params(base=(50.0, -100.0), B=1000.0)
+    trajs = {0: _line((0, 50), (100, 50)), 1: _line((100, 50), (0, 50))}
+    new, _, _, stops = simple_resolver.resolve(trajs, {0: 20.0, 1: 20.0}, {0: 100.0, 1: 100.0}, {"obstacles": None}, p)
+    assert stops == [] and cg.summary(new, p)["exposure"] > 0
+
+
+def test_end_to_end_with_simple_resolver():
+    p = default_params(resolver="simple")
+    out = planner.run(1, p)
+    c = out["checks"]
+    assert c["coverage_ok"] and c["budget_ok"] and c["K_ok"] and not c["problems"], c
+    assert c["clearance"] >= p["r_safe"] and c["curvature_x_R"] <= 1 + p["curvature_tol"], c
+    print(f"      seed 1: K={c['K']} T_max={c['T_max']:.1f}s conflict pairs "
+          f"{len(out['result']['before']['pairs'])}->{c['conflict_pairs']} closest {c['closest']:.2f}m")
 
 
 # ---------------------------------------------------------------- whole algorithm (0.11)

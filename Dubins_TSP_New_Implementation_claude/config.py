@@ -44,6 +44,7 @@ def default_params(**changes):
         "curvature_tol": 0.15,             # allowance when checking curvature <= 1/R on sampled points
         "max_games": 500,
         "repair_rounds": 3,                # Step 12: how often affected routes are re-optimised
+        "resolver": "game",                # "game": conflict_game.py; "simple": simple_resolver.py
     }
     p.update(changes)
     p["R"] = p["wheelbase"] / math.tan(p["delta_max"])     # minimum turning radius, eq. (7) -> 5 m

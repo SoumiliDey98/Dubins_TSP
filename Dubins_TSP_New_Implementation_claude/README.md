@@ -16,6 +16,7 @@ pip install -r requirements.txt
 python planner.py --seed 1               # summary + output/seed1.png
 python planner.py --seed 1 --budget 100  # another mission budget B (seconds)
 python planner.py --seed 1 --gif         # also output/seed1.gif (slow)
+python planner.py --seed 1 --resolver simple   # "wait your turn" instead of the game; output/seed1_simple.png
 python tests/run_tests.py                # all tests, about 2 minutes
 ```
 
@@ -34,6 +35,7 @@ To change any parameter, edit `config.py` or pass it to
 | `ga_tour.py` | 0.8 | Radially unimodal GA: initial tours with one radial peak; fitness = L_euclid + m(π)·π·R. |
 | `partition.py` | 0.9 | Geodesic spectral bisection with the min–max workload threshold. |
 | `conflict_game.py` | eq. 20, 0.10 | Conflict detection and the GO / WAIT / DETOUR best-response game (from `theory_claude/corridor_game_gt.py`). |
+| `simple_resolver.py` | eq. 20 | The simplest alternative to the game, no game theory: sinks take turns, longest tour first; each stops just long enough to clear a meeting. |
 | `planner.py` | 0.6, 0.11 | Steps 1–12, the checks of Section 0.7, the objectives K, T_max, L_total, and the command line. |
 | `plot.py` | — | PNG of the routes; optional GIF. |
 | `tests/run_tests.py` | — | Unit tests per module plus end-to-end runs. |
@@ -44,7 +46,7 @@ To change any parameter, edit `config.py` or pass it to
    - the GA orders the sensors (Step 3);
    - the order is turned into a real Dubins trajectory around the obstacles, and its time T = L/v + Σ τ is computed (Steps 2, 4);
    - if T ≤ B the tour is accepted; otherwise the group is split in two by the spectral bisection and both halves are planned again (Steps 5–7).
-2. **Steps 8–10.** All sinks start at t = 0. The earliest moment two sinks come closer than d_safe starts a game among the sinks involved. They choose GO, WAIT or DETOUR by best responses until nobody can improve (a pure Nash equilibrium). The equilibrium is applied, and the search continues after that moment.
+2. **Steps 8–10.** All sinks start at t = 0. The earliest moment two sinks come closer than d_safe starts a game among the sinks involved. They choose GO, WAIT or DETOUR by best responses until nobody can improve (a pure Nash equilibrium). The equilibrium is applied, and the search continues after that moment. With `--resolver simple`, `simple_resolver.py` does this step instead; the rest of the algorithm is the same.
 3. **Step 11.** Every constraint is measured independently:
    - coverage (eq. 15–16), budget (eq. 18), obstacle clearance (eq. 19);
    - turning radius;
@@ -107,7 +109,26 @@ are not guarantees.
 - **Separation between sinks (eq. 20):** 151 conflicting pairs (376.0 s of risk in total) before the game, 5 (4.0 s) after the game alone, and 3 (3.0 s) after the Step 12 repair. 8 of 10 maps end with no conflict. On maps 2 and 5 conflicts remain, with closest approaches of 0.67 m and 0.28 m against d_safe = 3 m: real near-misses that the method reports but does not remove.
 - **Strategies chosen:** GO 99, WAIT 90, DETOUR 4, over 42 games.
 - **Run time:** 25–66 s per map on this machine (map generation with the reachability check, route planning, conflict game).
-- Reproduce one row with `python planner.py --seed N --no-plot`.
+- Reproduce K, T_max, L_total and the final conflicts of a row with `python planner.py --seed N --no-plot`.
+
+## Conflict game or simple rule? (measured on the same 10 maps)
+
+`simple_resolver.py` uses no game theory: sinks take turns, longest tour first, and each one stops just long enough to clear a meeting with the sinks that went before it. For this comparison both methods start from the same planned routes on seeds 1–10 and are scored by the same check (`conflict_game.summary`).
+
+| | Conflict game | Simple rule |
+|---|---|---|
+| Code | 276 lines | 75 lines |
+| **Resolver alone** (151 conflicting pairs, 376 s of risk before): pairs left | 5 | 10 |
+| Risk left | 4.0 s | 22.5 s |
+| Maps with no conflict | 7 of 10 | 2 of 10 |
+| **With the Step 12 repair** (the default): pairs left | 3 | 1 |
+| Risk left | 3.0 s | 5.5 s |
+| Maps with no conflict | 8 of 10 | 9 of 10 |
+| Worst closest approach (d_safe = 3 m) | 0.28 m | 0.90 m |
+| Mission time added, all sinks on all maps | 283.5 s | 269.5 s |
+| Extra distance, all maps | 4.9 m | 0 m |
+
+Coverage, budget, obstacle clearance and turning radius held on every map with both methods. On its own the game clearly removes more conflicts. With the repair step the two are close, and neither is better on every measure; 10 maps are too few to rank them. Compare any map with `python planner.py --seed N --no-plot` and the same command with `--resolver simple`.
 
 ## Differences from the original code in the repository root
 

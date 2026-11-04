@@ -3,6 +3,7 @@
     python planner.py --seed 1                 # plan, check, print a summary, save output/seed1.png
     python planner.py --seed 1 --budget 100    # another mission budget B
     python planner.py --seed 1 --gif           # also save an animation
+    python planner.py --seed 1 --resolver simple   # "wait your turn" instead of the conflict game
 """
 import argparse
 import os
@@ -15,6 +16,7 @@ import ga_tour
 import geodesic
 import partition
 import scenario
+import simple_resolver
 import trajectory
 from config import default_params
 
@@ -60,15 +62,16 @@ def reoptimize(k, tours, scen, geo, p, rng):
 
 
 def resolve_and_check(tours, scen, geo, p, rng):
-    """Steps 8-12: detect conflicts, play the conflict game, verify; if conflicts remain,
-    re-optimise the routes of the sinks involved and repeat (at most repair_rounds times).
-    The round with the least remaining risk is kept."""
+    """Steps 8-12: detect conflicts, resolve them (conflict game or simple rule, see p["resolver"]),
+    verify; if conflicts remain, re-optimise the routes of the sinks involved and repeat (at most
+    repair_rounds times). The round with the least remaining risk is kept."""
+    resolver = simple_resolver.resolve if p["resolver"] == "simple" else conflict_game.resolve
     best = None
     for rnd in range(p["repair_rounds"] + 1):
         trajs = {k: t["frames"] for k, t in enumerate(tours)}
         before = conflict_game.summary(trajs, p)                                   # Step 8
-        new, T, L, games = conflict_game.resolve(trajs, {k: t["T"] for k, t in enumerate(tours)},
-                                                 {k: t["L"] for k, t in enumerate(tours)}, geo, p)   # Steps 9-10
+        new, T, L, games = resolver(trajs, {k: t["T"] for k, t in enumerate(tours)},
+                                    {k: t["L"] for k, t in enumerate(tours)}, geo, p)   # Steps 9-10
         after = conflict_game.summary(new, p)                                      # Step 11 (separation)
         result = {"round": rnd, "tours": list(tours), "frames": new, "T": T, "L": L, "games": games,
                   "before": before, "after": after}
@@ -112,7 +115,8 @@ def run(seed, p=None):
     tours, problems = plan_routes(scen, geo, p, rng)               # Steps 1-7
     times["routes"] = time.time() - t0
     t0 = time.time()
-    result = resolve_and_check(tours, scen, geo, p, rng)           # Steps 8-12
+    # Steps 8-12, with their own random stream so that both resolvers start them alike
+    result = resolve_and_check(tours, scen, geo, p, np.random.default_rng(seed + 1000))
     times["conflicts"] = time.time() - t0
     checks = check(result, scen, geo, p, problems)
     return {"scenario": scen, "geo": geo, "result": result, "checks": checks, "times": times, "params": p}
@@ -120,11 +124,14 @@ def run(seed, p=None):
 
 def report(out):
     c, res, p = out["checks"], out["result"], out["params"]
-    n_games = len(res["games"])
-    eq = {}
-    for g in res["games"]:
-        for name in g["equilibrium"].values():
-            eq[name] = eq.get(name, 0) + 1
+    if p["resolver"] == "simple":
+        how = f"simple resolver: {len(res['games'])} stops, {sum(s['wait'] for s in res['games']):.1f} s of waiting in total"
+    else:
+        eq = {}
+        for g in res["games"]:
+            for name in g["equilibrium"].values():
+                eq[name] = eq.get(name, 0) + 1
+        how = f"conflict games: {len(res['games'])}, choices {eq}"
     lines = [
         f"sensors {len(out['scenario']['xy'])}, obstacles {len(out['scenario']['obstacles'])}, budget B = {p['B']} s",
         f"objectives:  K = {c['K']} sinks,  T_max = {c['T_max']:.1f} s,  L_total = {c['L_total']:.0f} m",
@@ -132,10 +139,10 @@ def report(out):
         f"   K <= K_max: {'ok' if c['K_ok'] else 'FAILED'}",
         f"obstacle clearance (eq. 19): {c['clearance']:.2f} m (needs >= r_safe = {p['r_safe']})"
         f"   max curvature x R: {c['curvature_x_R']:.3f} (needs <= {1 + p['curvature_tol']:.2f})",
-        f"inter-sink conflicts (eq. 20): {len(res['before']['pairs'])} pairs / {res['before']['exposure']:.1f} s before the game"
+        f"inter-sink conflicts (eq. 20): {len(res['before']['pairs'])} pairs / {res['before']['exposure']:.1f} s before resolving"
         f" -> {c['conflict_pairs']} pairs / {res['after']['exposure']:.1f} s after (closest {c['closest']:.2f} m,"
         f" d_safe = {p['d_safe']})",
-        f"conflict games: {n_games}, choices {eq}, kept repair round {res['round']}",
+        f"{how}, kept repair round {res['round']}",
         "time: " + ", ".join(f"{k} {v:.1f} s" for k, v in out["times"].items()),
     ]
     lines += [f"problem: {x}" for x in c["problems"]]
@@ -148,19 +155,21 @@ def main():
     ap.add_argument("--budget", type=float, default=None, help="mission budget B [s]")
     ap.add_argument("--gif", action="store_true", help="also save an animation (slow)")
     ap.add_argument("--no-plot", action="store_true")
+    ap.add_argument("--resolver", choices=["game", "simple"], default="game", help="how conflicts between sinks are resolved")
     args = ap.parse_args()
-    p = default_params() if args.budget is None else default_params(B=args.budget)
+    p = default_params(resolver=args.resolver) if args.budget is None else default_params(resolver=args.resolver, B=args.budget)
     out = run(args.seed, p)
     print(report(out))
     if not args.no_plot:
         import plot
         folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
         os.makedirs(folder, exist_ok=True)
-        path = os.path.join(folder, f"seed{args.seed}.png")
+        name = f"seed{args.seed}" + ("_simple" if args.resolver == "simple" else "")
+        path = os.path.join(folder, f"{name}.png")
         plot.routes(out, path)
         print(f"figure: {path}")
         if args.gif:
-            path = os.path.join(folder, f"seed{args.seed}.gif")
+            path = os.path.join(folder, f"{name}.gif")
             plot.animation(out, path)
             print(f"animation: {path}")
 
