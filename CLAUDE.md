@@ -10,11 +10,10 @@ The user asked for this file to be kept up to date as work proceeds. In the same
 
 Dubins TSP for wireless sensor networks: several mobile sinks, modelled as Dubins vehicles, leave a base station, collect data from every sensor and return, avoiding obstacles and each other.
 
-- `Dubins_TSP.pdf`: the paper (Soumili Dey, May 2026) and the specification for the code.
+- `Dubins_TSP.pdf`: the paper (Soumili Dey, May 2026) and the specification for the code. Section 0.13 is currently marked up: blue lines are proposed additions, and red shaded lines are for the user to remove (open item 1). The unmarked version is in git at commit `374a424`.
 - `Dubins_TSP_New_Implementation_claude/`: the active implementation. Everything below refers to it unless stated. Its `README.md` has the file-to-paper mapping, the choices made where the paper is silent, what is guaranteed versus only measured, and all result tables.
-- `dubins.py` (root): the original Dubins code. Treat as read-only: `test_dubins_matches_original_and_ends_at_target` imports it as the reference.
 - `theory_claude/`: theory PDFs for the conflict game and the simple resolver, plus `corridor_game_gt.py`, which `conflict_game.py` was adapted from.
-- `Dubins_TSP_Antigravity/`: a separate implementation with its own README and requirements. The active implementation does not use it.
+- `Dubins_TSP_Antigravity/`: a separate implementation with its own README and requirements. The active implementation does not use it, except that `test_dubins_matches_original_and_ends_at_target` imports its `dubins.py`, the original Dubins code, as a read-only reference. Do not move or change that file without updating the test.
 
 ## Commands
 
@@ -27,7 +26,7 @@ python planner.py --seed 1                     # also writes output/seed1.png
 python planner.py --seed 1 --budget 100        # another mission budget B [s]
 python planner.py --seed 1 --gif               # also writes output/seed1.gif (slow)
 python planner.py --seed 1 --resolver simple   # "wait your turn" instead of the conflict game
-python planner.py --seed 1 --dubins pdf        # Section 0.13 word rule instead of the shortest of six
+python planner.py --seed 1 --dubins pdf        # Section 0.13 turn-type rule instead of the shortest of six
 python compare_dubins.py                       # both Dubins methods on seeds 1-10; prints the README comparison
 python compare_dubins.py --seeds 1 --jobs 2    # same, on chosen maps
 python tests/run_tests.py                      # whole suite
@@ -43,10 +42,12 @@ python -m pytest tests/run_tests.py -k <name>
 python -m pytest tests/run_tests.py -k "not end_to_end and not same_seed"   # skips the full planner runs
 ```
 
-- On the 2-core codespace the suite takes about 5 minutes (seven full planner runs) and the 10-map `compare_dubins.py` about 13 minutes, so run them in the background and not at the same time.
+- On the 2-core codespace the suite takes 4-5 minutes (seven full planner runs) and the 10-map `compare_dubins.py` 10-13 minutes, so run them in the background and not at the same time.
 - New `test_*` functions in `run_tests.py` are picked up automatically.
-- `output/seed1.png`, `seed1_simple.png`, `seed2.png`, `seed3.png` and `seed3_simple.png` are tracked in git, so plotting those runs dirties the tree. Use `--no-plot` for checks. GIFs are ignored.
-- Reading the PDFs: `pdftotext`, `pdftoppm` and `pypdf` are not installed, and the Read tool cannot render PDFs without poppler. Use `pip install --target <scratch dir> pypdf` and extract the text. Equations come out garbled and can lose symbols, so read them with care. Section 0.13 is on PDF pages 10-13.
+- `output/seed1.png`, `seed1_simple.png`, `seed2.png`, `seed3.png` and `seed3_simple.png` are tracked in git, so plotting those runs dirties the tree. Use `--no-plot` for checks.
+- There is no `.gitignore`: the user had it deleted. `__pycache__/` and GIFs are therefore not ignored, so stage files by name instead of using `git add -A`, and run Python with `PYTHONDONTWRITEBYTECODE=1` so that `__pycache__/` is not created.
+- Reading PDFs: `poppler-utils` lets the Read tool show PDF pages as images, which is the reliable way to read equations; extracted text garbles them. It was installed in this codespace on 2026-11-05, and a new codespace needs `sudo apt-get install -y poppler-utils`. Section 0.13 is on PDF pages 10-15.
+- PDF viewer in VS Code: `analytic-signal.preview-pdf`, installed with `~/.vscode-remote/bin/*/bin/remote-cli/code --install-extension analytic-signal.preview-pdf`. The plain `code` command does not work from the agent shell, and `tomoki1207.pdf` refuses to install on a Codespace. A new codespace needs this again.
 
 ## Architecture
 
@@ -73,7 +74,7 @@ What spans several modules:
 
 - **Indices.** `geo["D"]` and `geodesic.path` use terminals: 0 is the base, i + 1 is sensor i. Tours, `tau` and `partition` use 0-based sensor ids, so `geo["D"][0, 1:]` is `r` and `geo["D"][1:, 1:]` is `Ds`.
 - **Three length measures.** The GA's fitness is straight-line length + m(π)·π·R, with no Dubins paths; only its radial distance `r` is geodesic. `partition.workload` uses geodesic legs. Only the budget test `T <= B` uses real Dubins lengths, from `trajectory.build`.
-- **Choosing the Dubins word.** `p["dubins_method"]` is read only in `trajectory.py`, at three call sites that must agree: the heading search's cost table (`dubins_path.lengths`), and `_leg_clear` and `build` (`dubins_path.select`). Otherwise the heading search would optimise paths the sink does not drive. `dubins_path.shortest` is always the true six-word minimum.
+- **Choosing the turn type.** `p["dubins_method"]` is read only in `trajectory.py`, at three call sites that must agree: the heading search's cost table (`dubins_path.returnPathDistances`), and `_leg_clear` and `build` (`dubins_path.returnDubinsPath`). Otherwise the heading search would optimise paths the sink does not drive. `findDubinsPath(..., "shortest")` is always the true minimum of the six turn types. `calculateCSCLengths` and `calculateCCCLengths` also work on arrays of headings, which keeps the heading search fast.
 - **Frames are the shared timeline.** A trajectory is an (F, 2) array with one position every `dt` seconds, and all sinks start at t = 0. Resolvers see only frames: WAIT repeats frames, DETOUR replaces a window, and both update T and L. So `result["tours"]` is the plan before resolving, while `check` reads the final `result["frames"]`, `result["T"]` and `result["L"]`.
 - **Interchangeable resolvers.** Both have the signature `resolve(trajs, T, L, geo, p) -> (trajs, T, L, records)`, and `conflict_game.summary` scores both. Eq. 20 applies only while both sinks are on their mission, and not when both are inside the docking zone (`base_radius`).
 - **Game invariant.** A pair's danger is charged equally to both players, which makes it an exact potential game, so best response always stops. Changes to the costs in `conflict_game.play` must preserve this; `test_game_is_an_exact_potential_game` checks it. The proof is in `theory_claude/Corridor_Game_Theory.pdf`.
@@ -86,19 +87,66 @@ What spans several modules:
 
 - The code is plain functions on NumPy arrays and dicts, with no classes. Docstrings cite paper sections and equations.
 - `Dubins_TSP.pdf` is the specification, and the user checks the code against it. Citing a section is a claim that the code follows it, so read the section first. State any departure in the docstring and the README; the README's "Choices where the paper is silent" table records how gaps were filled.
+- `dubins_path.py` uses the names and the order of steps of the user's DubinsPath notebook program (`dubinspath.py`, not in the repo), because the user knows that program. Keep those names. The file's opening comment lists that program's limitations in plain language; update it when behaviour changes. A "word" in the README and `compare_dubins.py` is a `turnType` in `dubins_path.py`.
 - New options follow the pattern of `resolver` and `dubins_method`: a key in `config.py`, a flag in `planner.main`, a filename suffix so outputs do not overwrite each other, and a README section with measurements.
+
+## Changes marked in `Dubins_TSP.pdf` (Section 0.13)
+
+The PDF was not changed beyond what is listed here. No original line was removed: additions are printed in blue, and lines to remove are shaded red with a red note and a PDF comment. Page numbers are those printed at the foot of the marked-up PDF, which is 1 less than the PDF page. The notes in the PDF are labelled R1-R8; the additions carry no labels there, and A1-A15 below follow their reading order.
+
+**Lines to remove**
+
+| Mark | Page | Lines | Why | Replaced by |
+|---|---|---|---|---|
+| R1 | 10 | "If `2R <= S_tan < 3R`, then it is a CCC curve. Else it is a CSC curve" | Not true for LSR and RSL, which stay CSC curves in that range | A5 |
+| R2 | 10 | `psi_L = (y_c2 - y_c1) / (x_c2 - x_c1)` | `psi_L` is an angle. This ratio is only its tangent, and it divides by zero when `x_c2 = x_c1` | A7 |
+| R3 | 11 | LSR: `psi_d = psi_L + tan^-1(2R / S_tan)` | `S_tan` is the distance between the circle centres, not the length of the straight part. The angle is 8.1 degrees off at `S_tan = 3R` | A8 |
+| R4 | 11 | RSL: `psi_d = psi_L - tan^-1(2R / S_tan)` | Same as R3 | A9 |
+| R5 | 11 | "Let the angular increment be" and `delta_psi = 0.05` | The exact arcs need no increment | A11 |
+| R6 | 11-12 | First arc: the rotation matrix with `i delta_psi`, "Initially," and its start values, "iterating until" with `abs(psi_T - psi_D) <= 0.1`, the heading update, `delta_S`, and the sum for `S_1` | Stepping can leave the heading up to 0.1 rad wrong where two parts meet, which makes a small corner and an approximate length. If the heading starts just past `psi_D`, an almost full circle is skipped, an error of about `2 pi R` | A11, A12 |
+| R7 | 12 | Second arc: the single word "Initially," in the heading line, its start values, the rotation matrix with `i delta_psi`, the heading update, the iteration, and the sum for `S_2` | Same as R6 | A11, A13 |
+| R8 | 13 | The two lines stepping by `3 u_hat`, "for", and `j = 1, ..., floor(d_co,ci / 3)` | The spacing of 3 applies to the straight part only, so points are unevenly spaced along the path | A14 |
+
+**Lines added**
+
+| Mark | Page | What it says |
+|---|---|---|
+| A1 | 9 | Legend under the section heading, explaining the colours. Delete it once the marked lines are gone |
+| A2 | 9 | The rule does not always give the shortest path. The true shortest comes from computing `S_path` for all six turn types and keeping the smallest |
+| A3 | 9 | Only the signs of `cp_1` and `cp_2` are used, so `u_hat_2` need not have unit length, which also avoids dividing by zero when the two points coincide |
+| A4 | 10 | The table does not cover `cp_2 = 0`, which is treated like `cp_2 > 0` |
+| A5 | 10 | Only RSR and LSL can become CCC curves. Every other case is a CSC curve |
+| A6 | 10 | When each turn type exists: RSR and LSL for every `S_tan`, LSR and RSL only if `S_tan >= 2R`, RLR and LRL only if `S_tan <= 4R`. If the rule picks LSR or RSL with `S_tan < 2R`, the shortest turn type that exists is used. A CCC curve can exist up to `4R` and be the shortest above `3R`, but the rule tries it only for `2R <= S_tan < 3R` |
+| A7 | 10 | `psi_L = atan2(y_c2 - y_c1, x_c2 - x_c1)` |
+| A8 | 11 | LSR: `psi_d = psi_L + sin^-1(2R / S_tan)` |
+| A9 | 11 | RSL: `psi_d = psi_L - sin^-1(2R / S_tan)` |
+| A10 | 11 | Straight part: `d_co,ci = S_tan` for RSR and LSL, `d_co,ci = sqrt(S_tan^2 - 4R^2)` for LSR and RSL. `psi_D` is the same angle as `psi_d` |
+| A11 | 11 | Exact arcs: `S_1 = R [sigma_1 (psi_D - psi_1) mod 2 pi]`, `S_2 = R [sigma_2 (psi_2 - psi_D) mod 2 pi]`, `alpha_1 = S_1 / R`, `alpha_2 = S_2 / R` |
+| A12 | 11 | Cut-out point: `x_co = cos(alpha_1)(x_1 - x_c1) - sigma_1 sin(alpha_1)(y_1 - y_c1) + x_c1`, `y_co = sigma_1 sin(alpha_1)(x_1 - x_c1) + cos(alpha_1)(y_1 - y_c1) + y_c1` |
+| A13 | 12 | Cut-in point: `x_ci = cos(alpha_2)(x_2 - x_c2) + sigma_2 sin(alpha_2)(y_2 - y_c2) + x_c2`, `y_ci = -sigma_2 sin(alpha_2)(x_2 - x_c2) + cos(alpha_2)(y_2 - y_c2) + y_c2` |
+| A14 | 13 | Points on the path step by one spacing `delta_s`, with `j = 1, ..., floor(d_co,ci / delta_s)`. The arcs use the same spacing, an angle of `delta_s / R` per point |
+| A15 | 13-14 | New Section 0.13.2, CCC Trajectory. It exists only if `S_tan <= 4R`. `theta = cos^-1(S_tan / 4R)`. Middle circle: `x_c3 = x_c1 + 2R cos(psi_L + sigma_1 theta)`, `y_c3 = y_c1 + 2R sin(psi_L + sigma_1 theta)`. Cut-out point: `x_co = x_c1 + R cos(psi_L + sigma_1 theta)`, `y_co = y_c1 + R sin(psi_L + sigma_1 theta)`. Cut-in point: `x_ci = x_c2 - R cos(psi_L - sigma_1 theta)`, `y_ci = y_c2 - R sin(psi_L - sigma_1 theta)`. Headings: `psi_co = psi_L + sigma_1 (theta + pi / 2)`, `psi_ci = psi_L - sigma_1 (theta + pi / 2)`. Arcs: `S_1 = R [sigma_1 (psi_co - psi_1) mod 2 pi]`, `S_3 = R (pi + 2 theta)`, `S_2 = R [sigma_2 (psi_2 - psi_ci) mod 2 pi]`. Total: `S_path = S_1 + S_3 + S_2` |
+
+**Noticed but not marked in the PDF**
+
+These are small wording points, not errors in the method.
+
+- Section 0.13, page 9: `(x_ci, y_ci)` means the centre of circle `i`, while pages 11-12 use the same symbols for the cut-in point. One of them needs another name.
+- Section 0.13, page 9: "the above two vectors" follows a list of three vectors.
+- Section 0.12, page 8: the sentence beginning "However, the sensors near the BS may exhaust their energy" appears twice, and "senser" is a typo.
+
+**Not checked**
+
+Only Section 0.13 was compared with the code line by line. Where the code is known to differ from other sections, for example GO / WAIT / DETOUR in place of Left / Right / Detour, or corridors not being extracted, the README's "Choices where the paper is silent" table records it, but those differences are not marked in the PDF.
 
 ## Open items
 
-1. **Section 0.13 of the PDF.** It cannot be implemented as written, and the user has not yet decided whether to edit it. If the `pdf` mode is described in the paper, these gaps need addressing:
-   - There is no fallback when the rule picks LSR or RSL with `S_tan < 2R`, where they do not exist.
-   - CCC is only considered for `2R <= S_tan < 3R`, but it can exist up to 4R. For (0, 0, 0°) to (1.5R, 0, 180°), `S_tan` = 1.5R and the true shortest path is RLR at 6.72R.
-   - Section 0.13.1 has no CCC construction.
-   - The cut-out angle uses `tan⁻¹(2R/S_tan)`. With `S_tan` as the distance between centres, the correct form is `sin⁻¹(2R/S_tan)`.
-   - `cp2 = 0` is not covered.
-2. **Eq. 20 is not guaranteed.** Conflicts are reported, not always removed. Default mode leaves them on seeds 2 and 5 (closest 0.67 m and 0.28 m against `d_safe` = 3 m); `pdf` mode leaves them on seeds 5 and 9 (1.30 m and 1.88 m).
+1. **Section 0.13 of `Dubins_TSP.pdf` is marked up and waiting for the user**, who will remove the lines shaded red (R1-R8). The user has said not to edit the PDF again for now. The full list is under "Changes marked in `Dubins_TSP.pdf`" above.
+2. **Eq. 20 is not guaranteed.** Conflicts are reported, not always removed. Default mode leaves one on seed 5 (closest 0.28 m against `d_safe` = 3 m); `pdf` mode leaves them on seeds 5 and 9 (1.30 m and 1.88 m).
 3. **No dedicated test for the detour fix below.** Only `test_end_to_end_with_pdf_rule` (seed 1) exercises it.
 4. **The `pdf` cost depends on the fallback.** Fallback legs use the true shortest word, and the heading search uses them more than the default plan's poses would (4.0 % against 1.7 % of legs). A different fallback, which the paper would have to define, would change the +2.4 %. No other fallback has been measured.
+5. **The docking-zone check sits on an exact limit.** `conflict_game.closest` and `simple_resolver.too_close` test `distance <= base_radius`. With `v` = 5 and `dt` = 0.5, a sink leaving the base in a straight line is exactly 5.0 m = `base_radius` from it after two frames, so rounding of about 1e-15 m can decide the exemption. This changed the result of seed 2 on 2026-11-05 (see the work log). Not fixed: a tolerance would change conflict detection, which is the user's decision and needs a re-measure.
+6. **Some README numbers have no script in the repo.** The "after game alone" pairs, the strategy counts and the game-versus-simple table came from a throwaway script on 2026-11-05. It reproduced the previous README totals when given the old code on seed 2.
 
 ## Work log
 
@@ -106,14 +154,24 @@ Newest first.
 
 ### 2026-11-05
 
-- **Pushed the README and CLAUDE.md corrections**, at the user's request, on branch `docs/correct-dubins-leg-counts`. They were not merged when this entry was written, so `origin/main` may still have the wrong 1504 figure; check `git log origin/main`.
+- **Listed every PDF change in this file and the README**, at the user's request, under "Changes marked in `Dubins_TSP.pdf`": R1-R8 to remove, A1-A15 added, the small wording points left unmarked, and the fact that only Section 0.13 was checked line by line. The PDF itself was not edited again.
+- **Marked up Section 0.13 of `Dubins_TSP.pdf`**, at the user's request. No original line was removed: lines were shifted down to open gaps, with additions in blue, and lines to remove shaded red with a PDF comment and a visible red note (R1-R8). The PDF went from 13 to 15 pages, and pages 10-15 carry newly drawn page numbers. A check found the first build had deleted original text, and that was fixed before the file was replaced: all 108 original line groups are now pixel-identical to the original and no word is missing. Every added formula matched `dubins_path.py` on 74192 CSC and 18400 CCC paths.
+- **Further clean-up, at the user's request.** Removed the blank line from `geodesic.py`. Deleted `.gitignore`, after the user had been told what it protects. Deleted `__pycache__/` and the untracked 7 MB `output/seed3.gif`, which `python planner.py --seed 3 --gif` recreates. Every `.py` file is in use, so none was removed. Refreshed `output/seed2.png`, which still showed the route from before the seed 2 change. Installed `poppler-utils` and the PDF Preview extension.
+- **Repo clean-up, at the user's request.** Deleted the root `dubins.py`, which was byte-identical to `Dubins_TSP_Antigravity/dubins.py` and used by only one test; that test now imports the Antigravity copy. Kept `compare_dubins.py`, because it still produces the README's comparison of the two Dubins modes; it can go if the `pdf` mode is ever dropped. All 26 tests pass.
+- **Rewrote `dubins_path.py` with the names and steps of the user's DubinsPath notebook program**, at the user's request, and corrected that program's limitations, which the file's opening comment lists in plain language. Both modes remain, and the default is still `"shortest"`. Old to new names: `select` became `findDubinsPath` and `returnDubinsPath`, `lengths` became `returnPathDistances`, `sample` became `calculateTrajectory`, `shortest(...)` became `findDubinsPath(..., "shortest")`, `pdf_word` became `findTurnType`, and `WORDS` became `TURN_TYPES`. `trajectory.py`, `compare_dubins.py` and the tests were updated to match.
+- **Measured the notebook program** (R = 5, 3000 random poses in a 40 m square): no path on 41 % of poses, a crash when `cp2 = 0` or the points coincide, CCC lengths about 13 m too short on average, and a mean CSC length error of 1.3 m with a worst case of 31.7 m. It does match Section 0.13's turn-type rule, circle centres and `Stan` band, but it shares the section's `atan` error.
+- **Checked the rewrite against the old module.** On 20000 random poses the choices were the same, lengths agreed within 1e-12 m and points within 2e-13 m. On 18000 awkward poses in `shortest` mode, built by driving known paths (zero-length parts, circles that only just touch), the new code was never longer than the known path, and the old module was longer on 1636. This testing also found two defects in the first draft of the rewrite, both fixed: false full circles near `Stan = 2R`, and touching circles treated as impossible.
+- **Seed 2 changed, the other 19 rows of `compare_dubins.py` did not.** In default mode T_max went from 74.2 to 68.7 s, L_total from 2880 to 2869 m, and the pairs left from 2 (closest 0.67 m) to 0 (closest 3.01 m). The plans before the game agree within 7e-14 m. The cause is one docking-zone check flipping (sink 5 at 5.000000000000002 m versus 4.999999999999997 m from the base; open item 5), so this is not evidence of better separation. The README tables were re-measured.
+- **Tests.** Added `test_dubins_every_turn_type_reaches_the_target_smoothly` and `test_dubins_cases_where_the_notebook_program_failed`; all 26 pass.
+- **Commit status.** All of this work was committed and merged into `main`, at the user's request.
+- **Pushed the README and CLAUDE.md corrections**, at the user's request, on branch `docs/correct-dubins-leg-counts`. That branch was merged into `main` later the same day.
 
 ### 2026-11-04
 
-- **Added `compare_dubins.py`**, at the user's request, to replace a throwaway script. It prints every number in the README's Dubins comparison, and a 10-map run matched the throwaway run on all 20 per-map rows. `classify_leg` (using the new `dubins_path.pdf_word`) gives fallback legs their own category; the throwaway merged them into "shortest", which produced a wrong "1504 of 1509" in the README and in a report to the user, now corrected to 1443. Added `test_compare_counts_fallback_legs_as_missing_not_shortest`; all 24 tests pass. Corrected the README's test time to about 5 minutes (measured 4 min 55 s).
-- **Mismatch found by the user.** `dubins_path.py` cited Sections 0.12-0.13 but computes all six words and keeps the shortest, as root `dubins.py` does (its turn-type functions are commented out as unused). Section 0.13 instead picks one word from `cp1`, `cp2` and `S_tan`. Given the options, the user chose to support both behind a switch.
-- **Added `dubins_method`.** Values are `"shortest"` (default) and `"pdf"`, with CLI flag `--dubins`; the code is `dubins_path.select` and `_pdf_word_index`. Default results are unchanged on seeds 1-10. `pdf` follows the paper only in the choice of word: both modes share the exact closed-form geometry, so the Δψ stepping of 0.13.1 is not used. Gaps were filled by falling back to the shortest existing word and treating `cp2 = 0` as a left turn.
-- **Measured over seeds 1-10** (table in the README).
+- **Added `compare_dubins.py`**, at the user's request, to replace a throwaway script. It prints every number in the README's Dubins comparison, and a 10-map run matched the throwaway run on all 20 per-map rows. `classify_leg` (using a helper now called `dubins_path.findTurnType`) gives fallback legs their own category; the throwaway merged them into "shortest", which produced a wrong "1504 of 1509" in the README and in a report to the user, now corrected to 1443. Added `test_compare_counts_fallback_legs_as_missing_not_shortest`; all 24 tests passed at that point. Corrected the README's test time to about 5 minutes (measured 4 min 55 s).
+- **Mismatch found by the user.** `dubins_path.py` cited Sections 0.12-0.13 but computes all six words and keeps the shortest, as the original `dubins.py` does (its turn-type functions are commented out as unused). Section 0.13 instead picks one word from `cp1`, `cp2` and `S_tan`. Given the options, the user chose to support both behind a switch.
+- **Added `dubins_method`.** Values are `"shortest"` (default) and `"pdf"`, with CLI flag `--dubins`; the code was `dubins_path.select` and `_pdf_word_index` (renamed on 2026-11-05). Default results are unchanged on seeds 1-10. `pdf` follows the paper only in the choice of word: both modes share the exact closed-form geometry, so the Δψ stepping of 0.13.1 is not used. Gaps were filled by falling back to the shortest existing word and treating `cp2 = 0` as a left turn.
+- **Measured over seeds 1-10** (values at that time; the README has the current ones).
   - `pdf` gives 2.4 % more total length (longer on every map) and 156 sinks instead of 155.
   - With the same visiting orders it adds 1.8 %, and 2 of 155 tours then exceed B.
   - The heading search steers towards poses where the rule's word is the shortest: 65.2 % of legs on the default plan's poses against 95.6 % on the rule's own plan, while "exists but longer" falls from 33.1 % to 0.3 %. The cost shows up as less favourable headings.

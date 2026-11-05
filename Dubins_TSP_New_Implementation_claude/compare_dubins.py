@@ -26,10 +26,11 @@ LEG_KINDS = ("shortest", "longer", "missing")
 def classify_leg(q0, q1, R):
     """How the rule of Section 0.13 does on one leg: its word is the "shortest" one,
     exists but is "longer", or is "missing" (it does not exist, so the fallback is used)."""
-    word, _, length = dubins_path.select(q0, q1, R, "pdf")
-    if word != dubins_path.pdf_word(q0, q1, R):
+    turnType, *lengths = dubins_path.findDubinsPath(*q0, *q1, R, "pdf")
+    if turnType != dubins_path.findTurnType(*q0, *q1, R):
         return "missing"
-    return "shortest" if length <= dubins_path.shortest(q0, q1, R)[2] + 1e-9 else "longer"
+    shortest = sum(dubins_path.findDubinsPath(*q0, *q1, R, "shortest")[1:])
+    return "shortest" if sum(lengths) <= shortest + 1e-9 else "longer"
 
 
 def leg_counts(tours, geo, p):

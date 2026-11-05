@@ -14,7 +14,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))                       # the new implementation
-sys.path.append(os.path.dirname(os.path.dirname(HERE)))         # repository root (read-only reference)
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(HERE)), "Dubins_TSP_Antigravity"))   # original dubins.py (read-only reference)
 
 import compare_dubins
 import conflict_game as cg
@@ -42,18 +42,66 @@ def _map(seed=1):
 # ---------------------------------------------------------------- Dubins (0.1, 0.13)
 
 def test_dubins_matches_original_and_ends_at_target():
-    sys.dont_write_bytecode = True                               # leave the repository root untouched
-    import dubins as original                                    # repository root, read-only reference
+    sys.dont_write_bytecode = True                               # leave the Antigravity folder untouched
+    import dubins as original                                    # Dubins_TSP_Antigravity/dubins.py, read-only reference
     rng = np.random.default_rng(0)
     for _ in range(500):
         q0 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
         q1 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
-        word, seg, length = dubins_path.shortest(q0, q1, P["R"])
+        turnType, S1, Smiddle, S2 = dubins_path.findDubinsPath(*q0, *q1, P["R"])
+        length = S1 + Smiddle + S2
         assert abs(length - original.returnDubinsPath(*q0, *q1, P["R"])[2]) < 1e-9
-        xy, s, th = dubins_path.sample(q0, word, seg, P["R"], 0.25)
-        assert np.hypot(*(xy[-1] - q1[:2])) < 1e-9
-        assert abs((th - q1[2] + math.pi) % (2 * math.pi) - math.pi) < 1e-9
+        xt, yt, s, psiT = dubins_path.calculateTrajectory(*q0, P["R"], turnType, S1, Smiddle, S2, 0.25)
+        assert np.hypot(xt[-1] - q1[0], yt[-1] - q1[1]) < 1e-9
+        assert abs((psiT - q1[2] + math.pi) % (2 * math.pi) - math.pi) < 1e-9
         assert abs(s[-1] - length) < 1e-9 and np.all(np.diff(s) <= 0.25 + 1e-12)
+
+
+def test_dubins_every_turn_type_reaches_the_target_smoothly():
+    """All six turn types, not only the shortest: right end pose, and the points are `step` apart along
+    the path, so no part is skipped and no jump is left out of pathDistance (limitations 4, 5 and 7)."""
+    rng = np.random.default_rng(1)
+    for R in (P["R"], 1.0):
+        for _ in range(100):
+            q0 = (*rng.uniform(0, 8 * R, 2), rng.uniform(-math.pi, math.pi))
+            q1 = (*rng.uniform(0, 8 * R, 2), rng.uniform(-math.pi, math.pi))
+            for turnType in dubins_path.TURN_TYPES:
+                S1, Smiddle, S2 = (float(S) for S in dubins_path.calculateLengths(*q0, *q1, R, turnType))
+                if not math.isfinite(S1):
+                    continue
+                xt, yt, s, psiT = dubins_path.calculateTrajectory(*q0, R, turnType, S1, Smiddle, S2, 0.05 * R)
+                assert np.hypot(xt[-1] - q1[0], yt[-1] - q1[1]) < 1e-9, (turnType, q0, q1)
+                assert abs((psiT - q1[2] + math.pi) % (2 * math.pi) - math.pi) < 1e-9, (turnType, q0, q1)
+                chords = np.hypot(np.diff(xt), np.diff(yt))
+                assert np.all(chords <= np.diff(s) + 1e-9), (turnType, q0, q1)
+                assert abs(chords.sum() - s[-1]) <= 1e-3 * s[-1] + 1e-9, (turnType, q0, q1)
+
+
+def test_dubins_cases_where_the_notebook_program_failed():
+    R = P["R"]
+    for method in ("pdf", "shortest"):
+        xt, yt, length, _ = dubins_path.returnDubinsPath(0.0, 0.0, 0.5, 20.0, 0.0, 0.0, R, method)    # limitation 1: cp2 = 0
+        assert np.hypot(xt[-1] - 20.0, yt[-1]) < 1e-9 and length > 20.0
+        turnType, S1, Smiddle, S2 = dubins_path.findDubinsPath(3.0, 4.0, 0.5, 3.0, 4.0, 1.0, R, method)   # limitation 2: same point,
+        xt, yt, _, psiT = dubins_path.calculateTrajectory(3.0, 4.0, 0.5, R, turnType, S1, Smiddle, S2, 0.25)  # other heading: a loop
+        assert np.hypot(xt[-1] - 3.0, yt[-1] - 4.0) < 1e-9 and S1 + Smiddle + S2 > 0
+        assert abs((psiT - 1.0 + math.pi) % (2 * math.pi) - math.pi) < 1e-9
+    rng = np.random.default_rng(5)
+    for _ in range(500):                                                                               # rounding must not add a full circle
+        x, y, psi = *rng.uniform(0, 100, 2), rng.uniform(-math.pi, math.pi)
+        for method in ("pdf", "shortest"):
+            assert dubins_path.returnDubinsPath(x, y, psi, x, y, psi, R, method)[2] < 1e-5             # same pose: nothing to drive
+            assert abs(dubins_path.returnDubinsPath(x, y, psi, x + 30 * math.cos(psi), y + 30 * math.sin(psi),
+                                                    psi, R, method)[2] - 30.0) < 1e-5                  # straight ahead
+    rng = np.random.default_rng(2)
+    for _ in range(300):                                                                               # limitation 3: always a path
+        q0 = (*rng.uniform(0, 3 * R, 2), rng.uniform(-math.pi, math.pi))
+        q1 = (*rng.uniform(0, 3 * R, 2), rng.uniform(-math.pi, math.pi))
+        for method in ("pdf", "shortest"):
+            assert math.isfinite(sum(dubins_path.findDubinsPath(*q0, *q1, R, method)[1:]))
+    # limitation 4: LSR with Stan = 3R. The straight part is sqrt(9 - 4) R long, leaving at asin(2 / 3) from psiL.
+    turnType, S1, dist, S2 = dubins_path.findDubinsPath(0.0, 0.0, 0.0, 15.0, 10.0, 0.0, R, "pdf")
+    assert turnType == "LSR" and abs(dist - math.sqrt(5) * R) < 1e-9 and abs(S1 - R * math.asin(2 / 3)) < 1e-9
 
 
 def test_pdf_rule_picks_the_word_of_section_0_13():
@@ -61,13 +109,13 @@ def test_pdf_rule_picks_the_word_of_section_0_13():
     h = math.pi / 2
     for q1, word in [((40, 5, h), "LSL"), ((40, -5, -h), "RSR"), ((40, 5, -h), "LSR"), ((40, -5, h), "RSL"),
                      ((17, 5, h), "LRL"), ((17, -5, -h), "RLR")]:     # the last two: 2R <= S_tan = 12 m < 3R
-        assert dubins_path.select((0, 0, 0), q1, R, "pdf")[0] == word, (q1, word)
+        assert dubins_path.findDubinsPath(0, 0, 0, *q1, R, "pdf")[0] == word, (q1, word)
 
 
 def test_pdf_rule_falls_back_when_its_word_does_not_exist():
     q0, q1 = (0, 0, 0), (7.5, 0, math.pi)                        # the rule picks RSL, but S_tan = 1.5 R < 2R
-    assert dubins_path.pdf_word(q0, q1, P["R"]) == "RSL"
-    assert dubins_path.select(q0, q1, P["R"], "pdf")[2] == dubins_path.shortest(q0, q1, P["R"])[2]
+    assert dubins_path.findTurnType(*q0, *q1, P["R"]) == "RSL"
+    assert dubins_path.findDubinsPath(*q0, *q1, P["R"], "pdf") == dubins_path.findDubinsPath(*q0, *q1, P["R"], "shortest")
 
 
 def test_pdf_rule_paths_reach_the_target_and_tables_agree():
@@ -76,16 +124,17 @@ def test_pdf_rule_paths_reach_the_target_and_tables_agree():
     for _ in range(500):
         q0 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
         q1 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
-        word, seg, length = dubins_path.select(q0, q1, R, "pdf")
-        assert length >= dubins_path.shortest(q0, q1, R)[2] - 1e-9
-        assert abs(length - dubins_path.lengths(q0[:2], q0[2], q1[:2], q1[2], R, "pdf")) < 1e-9
-        xy, _, th = dubins_path.sample(q0, word, seg, R, 0.25)
-        assert np.hypot(*(xy[-1] - q1[:2])) < 1e-9
-        assert abs((th - q1[2] + math.pi) % (2 * math.pi) - math.pi) < 1e-9
+        turnType, S1, Smiddle, S2 = dubins_path.findDubinsPath(*q0, *q1, R, "pdf")
+        length = S1 + Smiddle + S2
+        assert length >= sum(dubins_path.findDubinsPath(*q0, *q1, R, "shortest")[1:]) - 1e-9
+        assert abs(length - dubins_path.returnPathDistances(*q0, *q1, R, "pdf")) < 1e-9
+        xt, yt, _, psiT = dubins_path.calculateTrajectory(*q0, R, turnType, S1, Smiddle, S2, 0.25)
+        assert np.hypot(xt[-1] - q1[0], yt[-1] - q1[1]) < 1e-9
+        assert abs((psiT - q1[2] + math.pi) % (2 * math.pi) - math.pi) < 1e-9
     h0, h1 = rng.uniform(-math.pi, math.pi, 5), rng.uniform(-math.pi, math.pi, 7)
-    table = dubins_path.lengths((0.0, 0.0), h0[:, None], (9.0, 4.0), h1[None, :], R, "pdf")
+    table = dubins_path.returnPathDistances(0.0, 0.0, h0[:, None], 9.0, 4.0, h1[None, :], R, "pdf")
     for i, j in np.ndindex(table.shape):
-        assert abs(table[i, j] - dubins_path.select((0.0, 0.0, h0[i]), (9.0, 4.0, h1[j]), R, "pdf")[2]) < 1e-9
+        assert abs(table[i, j] - sum(dubins_path.findDubinsPath(0.0, 0.0, h0[i], 9.0, 4.0, h1[j], R, "pdf")[1:])) < 1e-9
 
 
 def test_compare_counts_fallback_legs_as_missing_not_shortest():
@@ -97,9 +146,8 @@ def test_compare_counts_fallback_legs_as_missing_not_shortest():
     for _ in range(500):
         q0 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
         q1 = (*rng.uniform(0, 40, 2), rng.uniform(-math.pi, math.pi))
-        a, b, d = dubins_path._relative(q0[:2], q0[2], q1[:2], q1[2], R)
-        totals = {w: float(sum(seg)) * R for w, seg in dubins_path._words(a, b, d).items()}
-        rule = totals[dubins_path.pdf_word(q0, q1, R)]
+        totals = {t: float(sum(dubins_path.calculateLengths(*q0, *q1, R, t))) for t in dubins_path.TURN_TYPES}
+        rule = totals[dubins_path.findTurnType(*q0, *q1, R)]
         expected = ("missing" if not math.isfinite(rule) else
                     "shortest" if rule <= min(totals.values()) + 1e-9 else "longer")
         assert compare_dubins.classify_leg(q0, q1, R) == expected

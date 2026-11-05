@@ -74,9 +74,8 @@ def _leg_clear(q0, q1, length, room, obstacles, p):
     c = math.hypot(q1[0] - q0[0], q1[1] - q0[1])
     if math.sqrt(max(length ** 2 - c ** 2, 0.0)) / 2 <= room - p["r_safe"]:
         return True
-    word, seg, _ = dubins_path.select(q0, q1, p["R"], p["dubins_method"])
-    xy, _, _ = dubins_path.sample(q0, word, seg, p["R"], p["ds"])
-    return shapely.distance(LineString(xy), obstacles) >= p["r_safe"]
+    xtrajectory, ytrajectory, _, _ = dubins_path.returnDubinsPath(*q0, *q1, p["R"], p["dubins_method"], p["ds"])
+    return shapely.distance(LineString(np.column_stack([xtrajectory, ytrajectory])), obstacles) >= p["r_safe"]
 
 
 def choose_headings(pts, geo, p):
@@ -88,7 +87,7 @@ def choose_headings(pts, geo, p):
     cost = np.zeros(len(cand[0]))
     back = []
     for k in range(1, len(pts)):
-        L = dubins_path.lengths(pts[k - 1], cand[k - 1][:, None], pts[k], cand[k][None, :], p["R"], p["dubins_method"])
+        L = dubins_path.returnPathDistances(*pts[k - 1], cand[k - 1][:, None], *pts[k], cand[k][None, :], p["R"], p["dubins_method"])
         total = cost[:, None] + L
         room = (shapely.distance(LineString(pts[k - 1:k + 1]), geo["obstacles"])
                 if geo["obstacles"] is not None else math.inf)
@@ -120,12 +119,13 @@ def build(order, geo, scen, p):
     t = L = 0.0
     for k in range(len(pts) - 1):
         q0, q1 = (*pts[k], h[k]), (*pts[k + 1], h[k + 1])
-        word, seg, length = dubins_path.select(q0, q1, p["R"], p["dubins_method"])
-        xy, s, _ = dubins_path.sample(q0, word, seg, p["R"], p["ds"])
-        knot_t.extend(t + s[1:] / p["v"])
+        xtrajectory, ytrajectory, pathDistance, strajectory = dubins_path.returnDubinsPath(
+            *q0, *q1, p["R"], p["dubins_method"], p["ds"])
+        xy = np.column_stack([xtrajectory, ytrajectory])
+        knot_t.extend(t + strajectory[1:] / p["v"])
         knot_xy.extend(xy[1:])
-        t += length / p["v"]
-        L += length
+        t += pathDistance / p["v"]
+        L += pathDistance
         if sensor[k + 1] >= 0:                         # dwell tau_i at sensor i
             t += scen["tau"][sensor[k + 1]]
             knot_t.append(t)
