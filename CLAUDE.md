@@ -28,6 +28,8 @@ python planner.py --seed 1 --budget 100        # another mission budget B [s]
 python planner.py --seed 1 --gif               # also writes output/seed1.gif (slow)
 python planner.py --seed 1 --resolver simple   # "wait your turn" instead of the conflict game
 python planner.py --seed 1 --dubins pdf        # Section 0.13 word rule instead of the shortest of six
+python compare_dubins.py                       # both Dubins methods on seeds 1-10; prints the README comparison
+python compare_dubins.py --seeds 1 --jobs 2    # same, on chosen maps
 python tests/run_tests.py                      # whole suite
 
 # One test: tests are plain functions and run_tests.py has no selector
@@ -41,7 +43,7 @@ python -m pytest tests/run_tests.py -k <name>
 python -m pytest tests/run_tests.py -k "not end_to_end and not same_seed"   # skips the full planner runs
 ```
 
-- The suite makes seven full planner runs, at roughly 40-80 s each on the 2-core codespace, so run it in the background.
+- On the 2-core codespace the suite takes about 5 minutes (seven full planner runs) and the 10-map `compare_dubins.py` about 13 minutes, so run them in the background and not at the same time.
 - New `test_*` functions in `run_tests.py` are picked up automatically.
 - `output/seed1.png`, `seed1_simple.png`, `seed2.png`, `seed3.png` and `seed3_simple.png` are tracked in git, so plotting those runs dirties the tree. Use `--no-plot` for checks. GIFs are ignored.
 - Reading the PDFs: `pdftotext`, `pdftoppm` and `pypdf` are not installed, and the Read tool cannot render PDFs without poppler. Use `pip install --target <scratch dir> pypdf` and extract the text. Equations come out garbled and can lose symbols, so read them with care. Section 0.13 is on PDF pages 10-13.
@@ -78,7 +80,7 @@ What spans several modules:
 - **Obstacle margins.** Corner-to-corner lines stay outside obstacles inflated by `r_plan` = `r_safe` + R. Lines touching a sensor or the base only need `r_safe` + 0.5 m. Final clearance is measured against the original obstacles and needs `r_safe`.
 - **Curvature.** Dense Dubins paths measure 1.000/R. `trajectory.max_curvature` fits circles through points at least 1 m apart, so sampled frames read slightly higher, and `curvature_tol` = 0.15 allows for that.
 - **Parameters.** Everything is one dict from `config.default_params(**changes)`. `R`, `r_safe` and `r_plan` are recomputed after the changes are applied, so `default_params(R=...)` has no effect; change `wheelbase` or `delta_max` instead.
-- **Determinism.** `run` uses `rng(seed)` for Steps 1-7 and `rng(seed + 1000)` for Steps 8-12, so the resolvers start those steps alike. An extra random draw or a geometry change shifts every result, and the README's tables were measured on seeds 1-10. Re-measure and update them when a change affects them.
+- **Determinism.** `run` uses `rng(seed)` for Steps 1-7 and `rng(seed + 1000)` for Steps 8-12, so the resolvers start those steps alike. An extra random draw or a geometry change shifts every result, and the README's tables were measured on seeds 1-10. Re-measure and update them when a change affects them; `compare_dubins.py` regenerates the Dubins comparison.
 
 ## Conventions
 
@@ -94,29 +96,34 @@ What spans several modules:
    - Section 0.13.1 has no CCC construction.
    - The cut-out angle uses `tan⁻¹(2R/S_tan)`. With `S_tan` as the distance between centres, the correct form is `sin⁻¹(2R/S_tan)`.
    - `cp2 = 0` is not covered.
-2. **Comparison script not in the repo.** The README's per-leg and same-order numbers came from a throwaway script. `python planner.py --seed N --no-plot --dubins pdf` reproduces only K, T_max, L_total and the final conflicts. Adding the script was offered; the user has not answered.
-3. **Eq. 20 is not guaranteed.** Conflicts are reported, not always removed. Default mode leaves them on seeds 2 and 5 (closest 0.67 m and 0.28 m against `d_safe` = 3 m); `pdf` mode leaves them on seeds 5 and 9 (1.30 m and 1.88 m).
-4. **No dedicated test for the detour fix below.** Only `test_end_to_end_with_pdf_rule` (seed 1) exercises it.
-5. **Stale README figure.** The README says the tests take "about 2 minutes", which does not match the planner run times above.
+2. **Eq. 20 is not guaranteed.** Conflicts are reported, not always removed. Default mode leaves them on seeds 2 and 5 (closest 0.67 m and 0.28 m against `d_safe` = 3 m); `pdf` mode leaves them on seeds 5 and 9 (1.30 m and 1.88 m).
+3. **No dedicated test for the detour fix below.** Only `test_end_to_end_with_pdf_rule` (seed 1) exercises it.
+4. **The `pdf` cost depends on the fallback.** Fallback legs use the true shortest word, and the heading search uses them more than the default plan's poses would (4.0 % against 1.7 % of legs). A different fallback, which the paper would have to define, would change the +2.4 %. No other fallback has been measured.
 
 ## Work log
 
 Newest first.
 
+### 2026-11-05
+
+- **Pushed the README and CLAUDE.md corrections**, at the user's request, on branch `docs/correct-dubins-leg-counts`. They were not merged when this entry was written, so `origin/main` may still have the wrong 1504 figure; check `git log origin/main`.
+
 ### 2026-11-04
 
+- **Added `compare_dubins.py`**, at the user's request, to replace a throwaway script. It prints every number in the README's Dubins comparison, and a 10-map run matched the throwaway run on all 20 per-map rows. `classify_leg` (using the new `dubins_path.pdf_word`) gives fallback legs their own category; the throwaway merged them into "shortest", which produced a wrong "1504 of 1509" in the README and in a report to the user, now corrected to 1443. Added `test_compare_counts_fallback_legs_as_missing_not_shortest`; all 24 tests pass. Corrected the README's test time to about 5 minutes (measured 4 min 55 s).
 - **Mismatch found by the user.** `dubins_path.py` cited Sections 0.12-0.13 but computes all six words and keeps the shortest, as root `dubins.py` does (its turn-type functions are commented out as unused). Section 0.13 instead picks one word from `cp1`, `cp2` and `S_tan`. Given the options, the user chose to support both behind a switch.
 - **Added `dubins_method`.** Values are `"shortest"` (default) and `"pdf"`, with CLI flag `--dubins`; the code is `dubins_path.select` and `_pdf_word_index`. Default results are unchanged on seeds 1-10. `pdf` follows the paper only in the choice of word: both modes share the exact closed-form geometry, so the Δψ stepping of 0.13.1 is not used. Gaps were filled by falling back to the shortest existing word and treating `cp2 = 0` as a left turn.
 - **Measured over seeds 1-10** (table in the README).
   - `pdf` gives 2.4 % more total length (longer on every map) and 156 sinks instead of 155.
   - With the same visiting orders it adds 1.8 %, and 2 of 155 tours then exceed B.
-  - The heading search avoids poses where the rule does badly: on 1504 of 1509 final legs the rule's word was also the shortest, and the fallback applied on 61. The cost shows up as less favourable headings.
-  - On random poses the rule looks much worse, picking the shortest word only 8 % of the time below 2R and 39 % from 2R to 4R. Do not quote those figures as the planner's cost.
+  - The heading search steers towards poses where the rule's word is the shortest: 65.2 % of legs on the default plan's poses against 95.6 % on the rule's own plan, while "exists but longer" falls from 33.1 % to 0.3 %. The cost shows up as less favourable headings.
+  - On random poses (a one-off experiment, not in the repo) the rule looks much worse, picking the shortest word only 8 % of the time below 2R and 39 % from 2R to 4R. Do not quote those figures as the planner's cost.
   - The conflict differences between modes are too small to rank them.
 - **Fixed `conflict_game.detour_traj`.** The curvature check covered only the detour and one neighbouring frame on each side. A sink parked at a sensor just before a detour hid its incoming direction, which let a 1.607/R turn past the 1.15/R limit. It now checks the whole resulting trajectory. Default K, T_max and L_total are unchanged on seeds 1-10.
-- **Tests.** Added three `test_pdf_rule_*` tests and `test_end_to_end_with_pdf_rule`; all 23 pass.
+- **Tests.** Added three `test_pdf_rule_*` tests and `test_end_to_end_with_pdf_rule`; all 23 passed at that point.
 - **README.** Added the comparison section and corrected its description of `dubins_path.py`.
-- **Created this file.** All of this day's changes were uncommitted when it was written; check `git status`.
+- **Created this file.**
+- **Commit status.** Commit `374a424` ("dubins path code modified", made under the user's git name and pushed to `origin/main`) holds this day's code, including `compare_dubins.py`, with older versions of the README and this file that still have the wrong 1504 figure.
 
 ### Earlier (from git history)
 

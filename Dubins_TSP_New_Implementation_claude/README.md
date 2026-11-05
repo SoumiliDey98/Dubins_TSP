@@ -18,7 +18,8 @@ python planner.py --seed 1 --budget 100  # another mission budget B (seconds)
 python planner.py --seed 1 --gif         # also output/seed1.gif (slow)
 python planner.py --seed 1 --resolver simple   # "wait your turn" instead of the game; output/seed1_simple.png
 python planner.py --seed 1 --dubins pdf  # turn-type rule of Section 0.13; output/seed1_pdf.png
-python tests/run_tests.py                # all tests, about 2 minutes
+python compare_dubins.py                 # both Dubins methods on seeds 1–10, about 13 minutes on 2 cores
+python tests/run_tests.py                # all tests, about 5 minutes
 ```
 
 To change any parameter, edit `config.py` or pass it to
@@ -38,6 +39,7 @@ To change any parameter, edit `config.py` or pass it to
 | `conflict_game.py` | eq. 20, 0.10 | Conflict detection and the GO / WAIT / DETOUR best-response game (from `theory_claude/corridor_game_gt.py`). |
 | `simple_resolver.py` | eq. 20 | The simplest alternative to the game, no game theory: sinks take turns, longest tour first; each stops just long enough to clear a meeting. |
 | `planner.py` | 0.6, 0.11 | Steps 1–12, the checks of Section 0.7, the objectives K, T_max, L_total, and the command line. |
+| `compare_dubins.py` | 0.13 | Runs both Dubins methods on the same maps and prints the numbers of the comparison below. |
 | `plot.py` | — | PNG of the routes; optional GIF. |
 | `tests/run_tests.py` | — | Unit tests per module plus end-to-end runs. |
 
@@ -134,7 +136,7 @@ Coverage, budget, obstacle clearance and turning radius held on every map with b
 
 ## Shortest of six or the rule of Section 0.13? (measured on the same 10 maps)
 
-`dubins_method="shortest"` is the default. `dubins_method="pdf"` picks the word from the signs of cp1 and cp2 and from S_tan, as Section 0.13 describes. Each method plans its own routes on seeds 1–10, with the conflict game. All values are totals over the 10 maps unless stated.
+`dubins_method="shortest"` is the default. `dubins_method="pdf"` picks the word from the signs of cp1 and cp2 and from S_tan, as Section 0.13 describes. Each method plans its own routes on seeds 1–10, with the conflict game. All values are totals over the 10 maps unless stated. `python compare_dubins.py` prints every number in this section, plus a row per map; add `--seeds N` for chosen maps.
 
 | | Shortest of six | Rule of Section 0.13 |
 |---|---|---|
@@ -148,11 +150,18 @@ Coverage, budget, obstacle clearance and turning radius held on every map with b
 | Highest curvature × R | 1.014 | 1.019 |
 
 - **Same visiting orders:** rebuilding the 155 tours of the default plan with the rule gives 28822 m → 29328 m (+1.8 %), and 2 of them then exceed B. This isolates the rule from differences in GA runs and splits.
-- **Legs of the final plans with the rule (1509):** the rule's word was also the shortest for those poses on 1504 of them, and it chose a word that does not exist on 61 (4.0 %), where the fallback applied. The heading search avoids poses where the rule does badly, so the cost appears as less favourable headings, not as bad individual legs.
 - **Conflicts:** the differences are small and come from routes that differ, so they do not show that either method separates sinks better.
 - Coverage, budget, obstacle clearance and turning radius held on every map with both methods.
 
-Reproduce K, T_max, L_total and the final conflicts of a map with `python planner.py --seed N --no-plot --dubins pdf`.
+**How the rule does on each leg.** This table classifies the rule's own word on the legs of each final plan. The default plan does not use the rule, so its column shows how the rule would have done there.
+
+| Legs of the final plan | Default plan | Plan made with the rule |
+|---|---|---|
+| Rule's word is the shortest | 982 of 1505 (65.2 %) | 1443 of 1509 (95.6 %) |
+| Rule's word exists but is longer | 498 of 1505 (33.1 %) | 5 of 1509 (0.3 %) |
+| Rule's word does not exist (fallback) | 25 of 1505 (1.7 %) | 61 of 1509 (4.0 %) |
+
+The heading search steers the plan towards poses where the rule's word is the shortest, so the cost appears as less favourable headings, not as bad individual legs. Fallback legs are the true shortest by construction, so the search has no reason to avoid them, and a different fallback would change the +2.4 %.
 
 ## Differences from the original code in the repository root
 
