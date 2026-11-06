@@ -10,7 +10,7 @@ The user asked for this file to be kept up to date as work proceeds. In the same
 
 Dubins TSP for wireless sensor networks: several mobile sinks, modelled as Dubins vehicles, leave a base station, collect data from every sensor and return, avoiding obstacles and each other.
 
-- `Dubins_TSP.pdf`: the paper (Soumili Dey, May 2026) and the specification for the code. Section 0.13 is currently marked up: blue lines are proposed additions, and red shaded lines are for the user to remove (open item 1). The unmarked version is in git at commit `374a424`.
+- `Dubins_TSP.pdf`: the paper (Soumili Dey, May 2026) and the specification for the code. Sections 0.10.1 and 0.10.2, on inserted pages 7a and 7b, give the theory of `conflict_game.py` and `simple_resolver.py`. Section 0.13 is currently marked up: blue lines are proposed additions, and red shaded lines are for the user to remove (open item 1). The unmarked version is in git at commit `374a424`.
 - `Dubins_TSP_New_Implementation_claude/`: the active implementation. Everything below refers to it unless stated. Its `README.md` has the file-to-paper mapping, the choices made where the paper is silent, what is guaranteed versus only measured, and all result tables.
 - `theory_claude/`: theory PDFs for the conflict game and the simple resolver, plus `corridor_game_gt.py`, which `conflict_game.py` was adapted from.
 - `Dubins_TSP_Antigravity/`: a separate implementation with its own README and requirements. The active implementation does not use it, except that `test_dubins_matches_original_and_ends_at_target` imports its `dubins.py`, the original Dubins code, as a read-only reference. Do not move or change that file without updating the test.
@@ -47,7 +47,7 @@ python -m pytest tests/run_tests.py -k "not end_to_end and not same_seed"   # sk
 - New `test_*` functions in `run_tests.py` are picked up automatically.
 - `output/seed1.png`, `seed1_simple.png`, `seed2.png`, `seed3.png` and `seed3_simple.png` are tracked in git, so plotting those runs dirties the tree. Use `--no-plot` for checks.
 - There is no `.gitignore`: the user had it deleted. `__pycache__/` and GIFs are therefore not ignored, so stage files by name instead of using `git add -A`, and run Python with `PYTHONDONTWRITEBYTECODE=1` so that `__pycache__/` is not created.
-- Reading PDFs: `poppler-utils` lets the Read tool show PDF pages as images, which is the reliable way to read equations; extracted text garbles them. It was installed in this codespace on 2026-11-05, and a new codespace needs `sudo apt-get install -y poppler-utils`. Section 0.13 is on PDF pages 10-15.
+- Reading PDFs: `poppler-utils` lets the Read tool show PDF pages as images, which is the reliable way to read equations; extracted text garbles them. It was installed in this codespace on 2026-11-05, and a new codespace needs `sudo apt-get install -y poppler-utils`. Section 0.13 is on PDF pages 12-17.
 - A codespace restart wipes `/tmp`, including the session scratchpad, so a long measurement kept only there can be lost. Write results per seed so a run can resume, and copy what must survive before leaving a run idle.
 - PDF viewer in VS Code: `analytic-signal.preview-pdf`, installed with `~/.vscode-remote/bin/*/bin/remote-cli/code --install-extension analytic-signal.preview-pdf`. The plain `code` command does not work from the agent shell, and `tomoki1207.pdf` refuses to install on a Codespace. A new codespace needs this again.
 
@@ -95,7 +95,7 @@ What spans several modules:
 
 ## Changes marked in `Dubins_TSP.pdf` (Section 0.13)
 
-The PDF was not changed beyond what is listed here. No original line was removed: additions are printed in blue, and lines to remove are shaded red with a red note and a PDF comment. Page numbers are those printed at the foot of the marked-up PDF, which is 1 less than the PDF page. The notes in the PDF are labelled R1-R8; the additions carry no labels there, and A1-A15 below follow their reading order.
+The PDF was not changed beyond what is listed here. No original line was removed: additions are printed in blue, and lines to remove are shaded red with a red note and a PDF comment. Page numbers are those printed at the foot of the PDF. Printed page n is PDF page n + 1 up to page 7, and PDF page n + 3 from page 8 on, because pages 7a and 7b are PDF pages 9 and 10. The notes in the PDF are labelled R1-R8; the additions carry no labels there, and A1-A15 below follow their reading order.
 
 **Lines to remove**
 
@@ -130,6 +130,10 @@ The PDF was not changed beyond what is listed here. No original line was removed
 | A14 | 13 | Points on the path step by one spacing `delta_s`, with `j = 1, ..., floor(d_co,ci / delta_s)`. The arcs use the same spacing, an angle of `delta_s / R` per point |
 | A15 | 13-14 | New Section 0.13.2, CCC Trajectory. It exists only if `S_tan <= 4R`. `theta = cos^-1(S_tan / 4R)`. Middle circle: `x_c3 = x_c1 + 2R cos(psi_L + sigma_1 theta)`, `y_c3 = y_c1 + 2R sin(psi_L + sigma_1 theta)`. Cut-out point: `x_co = x_c1 + R cos(psi_L + sigma_1 theta)`, `y_co = y_c1 + R sin(psi_L + sigma_1 theta)`. Cut-in point: `x_ci = x_c2 - R cos(psi_L - sigma_1 theta)`, `y_ci = y_c2 - R sin(psi_L - sigma_1 theta)`. Headings: `psi_co = psi_L + sigma_1 (theta + pi / 2)`, `psi_ci = psi_L - sigma_1 (theta + pi / 2)`. Arcs: `S_1 = R [sigma_1 (psi_co - psi_1) mod 2 pi]`, `S_3 = R (pi + 2 theta)`, `S_2 = R [sigma_2 (psi_2 - psi_ci) mod 2 pi]`. Total: `S_path = S_1 + S_3 + S_2` |
 
+**Sections added on 2026-11-06**
+
+Pages 7a and 7b sit between Algorithm 1 and Section 0.11. Section 0.10.1 is the theory of `conflict_game.py`, and Section 0.10.2 is the theory of `simple_resolver.py`. They are short versions of `theory_claude/conflict_game_math.pdf` and `simple_resolver_math.pdf`, in black like the rest of the paper. The blue legend under Section 0.13 covers that section only. They use `F_k` for the risk against non-players, where the note and the code say `B_k`/`Bk`, because `B` is the budget in the paper. Change these sections whenever either resolver changes.
+
 **Noticed but not marked in the PDF**
 
 These are small wording points, not errors in the method.
@@ -140,11 +144,11 @@ These are small wording points, not errors in the method.
 
 **Not checked**
 
-Only Section 0.13 was compared with the code line by line. Where the code is known to differ from other sections, for example GO / WAIT / DETOUR in place of Left / Right / Detour, or corridors not being extracted, the README's "Choices where the paper is silent" table records it, but those differences are not marked in the PDF.
+Only Section 0.13 was compared with the code line by line. Where the code is known to differ from other sections, the README's "Choices where the paper is silent" table records it. Section 0.10.1 states the two differences for Section 0.10 (GO / WAIT / DETOUR in place of Left / Right / Detour, and corridors not being extracted); the original text of Section 0.10 is unchanged.
 
 ## Open items
 
-1. **Section 0.13 of `Dubins_TSP.pdf` is marked up and waiting for the user**, who will remove the lines shaded red (R1-R8). The user has said not to edit the PDF again for now. The full list is under "Changes marked in `Dubins_TSP.pdf`" above.
+1. **Section 0.13 of `Dubins_TSP.pdf` is marked up and waiting for the user**, who will remove the lines shaded red (R1-R8). Edit the PDF only when the user asks; the last request added Sections 0.10.1 and 0.10.2 and said not to delete anything. The full list is under "Changes marked in `Dubins_TSP.pdf`" above.
 2. **Eq. 20 is not guaranteed.** Conflicts are reported, not always removed. On seeds 1-30 the game leaves conflicts on 8 maps (5, 15, 17, 19, 24, 26, 27, 28; worst 0.28 m on seed 5, against `d_safe` = 3 m) and the simple rule on 10 (worst 0.04 m). On seeds 1-10, `pdf` mode leaves them on seeds 5 and 9 (1.30 m and 1.88 m).
 3. **No dedicated test for the detour fix below.** Only `test_end_to_end_with_pdf_rule` (seed 1) exercises it.
 4. **The `pdf` cost depends on the fallback.** Fallback legs use the true shortest word, and the heading search uses them more than the default plan's poses would (4.0 % against 1.7 % of legs). A different fallback, which the paper would have to define, would change the +2.4 %. No other fallback has been measured.
@@ -163,7 +167,8 @@ Newest first.
 - **Compared `conflict_game.py` and `simple_resolver.py` on seeds 1-30**, at the user's request, and published an illustrated report: https://claude.ai/artifact/AiPAeR9qeArao1uUxenVQN (private to the user until shared). The table and what-if variants are in the README under "The same comparison on 30 maps". The verdict is that the game is better: resolver alone it leaves 13.0 s of risk against 103.5 s, and after repair 6.0 s against 20.0 s, with 22 and 20 of 30 maps clean (p = 0.06 after repair, so that last lead is not conclusive). The simple rule is better on T_max (74.63 s against 76.45 s), and on the 18 maps where both end clean it has the lower T_max on 10. Seeds 1-10 reproduced the README's earlier table. No resolver code changed; every variant was patched in memory. New open items 7-9; open item 2 updated.
 - **Saved the report as a PDF**, at the user's request: `Dubins_TSP_New_Implementation_claude/output/compare_resolvers.pdf` (A4, 12 pages, static copy of the online report; all three incidents shown, tables expanded, Figure 7 on seed 1). It was printed with a temporary headless browser in the scratchpad, so `planner.py` and `plot.py` do not produce it. While checking it, Figure 6's distance charts were found to plot whole frames only, which hid the true closest approach between frames; this was fixed in both the PDF and the online report.
 - **A codespace restart lost the first run.** It wiped `/tmp`, including the scratchpad, while the session was idle partway through the work. The main run was repeated and every total measured twice matched. The stress totals at `d_safe` 2, 5, 6 and 8 m, the B sweep, and the give-up and leftover counts are kept from the first run.
-- **Commit status.** The README, this file and the PDF were not committed. The PDF is a new untracked file.
+- **Added the theory of both resolvers to `Dubins_TSP.pdf`**, at the user's request, as Sections 0.10.1 and 0.10.2 on inserted pages 7a and 7b (15 to 17 PDF pages). Formulas were checked against the code. The file is an incremental update: the old PDF's bytes are unchanged at the start of the new file, all 15 original pages are pixel-identical and have the same text, and the 11 annotations are kept. Downloading a LaTeX compiler was blocked by the permission system, so the pages were typeset with matplotlib's Computer Modern fonts and inserted by a stdlib script; both scripts are in the session scratchpad only. Extracted text of the new formulas comes out garbled, because of that font encoding; they display correctly.
+- **Commit status.** The README, this file, `Dubins_TSP.pdf` and `output/compare_resolvers.pdf` were not committed. The report PDF is a new untracked file.
 
 ### 2026-11-05
 

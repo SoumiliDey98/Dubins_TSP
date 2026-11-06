@@ -37,8 +37,8 @@ To change any parameter, edit `config.py` or pass it to
 | `trajectory.py` | 0.5, eq. 17, eq. 19 | Tour → waypoints → headings → Dubins legs → positions every dt seconds. T_k = L_k/v + Σ τᵢ. |
 | `ga_tour.py` | 0.8 | Radially unimodal GA: initial tours with one radial peak; fitness = L_euclid + m(π)·π·R. |
 | `partition.py` | 0.9 | Geodesic spectral bisection with the min–max workload threshold. |
-| `conflict_game.py` | eq. 20, 0.10 | Conflict detection and the GO / WAIT / DETOUR best-response game (from `theory_claude/corridor_game_gt.py`). |
-| `simple_resolver.py` | eq. 20 | The simplest alternative to the game, no game theory: sinks take turns, longest tour first; each stops just long enough to clear a meeting. |
+| `conflict_game.py` | eq. 20, 0.10, 0.10.1 | Conflict detection and the GO / WAIT / DETOUR best-response game (from `theory_claude/corridor_game_gt.py`). |
+| `simple_resolver.py` | eq. 20, 0.10.2 | The simplest alternative to the game, no game theory: sinks take turns, longest tour first; each stops just long enough to clear a meeting. |
 | `planner.py` | 0.6, 0.11 | Steps 1–12, the checks of Section 0.7, the objectives K, T_max, L_total, and the command line. |
 | `compare_dubins.py` | 0.13 | Runs both Dubins methods on the same maps and prints the numbers of the comparison below; `--figures` also saves its five figures. |
 | `plot.py` | — | PNG of the routes; optional GIF; the comparison figures. |
@@ -243,7 +243,7 @@ The rule's saving on single paths most likely outweighs its slower table, becaus
 
 ## Changes marked in `Dubins_TSP.pdf` (Section 0.13)
 
-The PDF was not changed beyond what is listed here. No original line was removed: additions are printed in blue, and lines to remove are shaded red with a red note and a PDF comment. Page numbers are those printed at the foot of the marked-up PDF, which is 1 less than the PDF page. The notes in the PDF are labelled R1-R8; the additions carry no labels there, and A1-A15 below follow their reading order.
+The PDF was not changed beyond what is listed here. No original line was removed: additions are printed in blue, and lines to remove are shaded red with a red note and a PDF comment. Page numbers are those printed at the foot of the PDF. Printed page n is PDF page n + 1 up to page 7, and PDF page n + 3 from page 8 on, because pages 7a and 7b are PDF pages 9 and 10. The notes in the PDF are labelled R1-R8; the additions carry no labels there, and A1-A15 below follow their reading order.
 
 **Lines to remove**
 
@@ -278,6 +278,10 @@ The PDF was not changed beyond what is listed here. No original line was removed
 | A14 | 13 | Points on the path step by one spacing `delta_s`, with `j = 1, ..., floor(d_co,ci / delta_s)`. The arcs use the same spacing, an angle of `delta_s / R` per point |
 | A15 | 13-14 | New Section 0.13.2, CCC Trajectory. It exists only if `S_tan <= 4R`. `theta = cos^-1(S_tan / 4R)`. Middle circle: `x_c3 = x_c1 + 2R cos(psi_L + sigma_1 theta)`, `y_c3 = y_c1 + 2R sin(psi_L + sigma_1 theta)`. Cut-out point: `x_co = x_c1 + R cos(psi_L + sigma_1 theta)`, `y_co = y_c1 + R sin(psi_L + sigma_1 theta)`. Cut-in point: `x_ci = x_c2 - R cos(psi_L - sigma_1 theta)`, `y_ci = y_c2 - R sin(psi_L - sigma_1 theta)`. Headings: `psi_co = psi_L + sigma_1 (theta + pi / 2)`, `psi_ci = psi_L - sigma_1 (theta + pi / 2)`. Arcs: `S_1 = R [sigma_1 (psi_co - psi_1) mod 2 pi]`, `S_3 = R (pi + 2 theta)`, `S_2 = R [sigma_2 (psi_2 - psi_ci) mod 2 pi]`. Total: `S_path = S_1 + S_3 + S_2` |
 
+**Sections added on 2026-11-06**
+
+Pages 7a and 7b sit between Algorithm 1 and Section 0.11. Section 0.10.1 is the theory of `conflict_game.py` and Section 0.10.2 is the theory of `simple_resolver.py`, in black like the rest of the paper. The blue legend under Section 0.13 covers that section only.
+
 **Noticed but not marked in the PDF**
 
 These are small wording points, not errors in the method.
@@ -288,7 +292,7 @@ These are small wording points, not errors in the method.
 
 **Not checked**
 
-Only Section 0.13 was compared with the code line by line. Where the code is known to differ from other sections, for example GO / WAIT / DETOUR in place of Left / Right / Detour, or corridors not being extracted, the README's "Choices where the paper is silent" table records it, but those differences are not marked in the PDF.
+Only Section 0.13 was compared with the code line by line. Where the code is known to differ from other sections, the "Choices where the paper is silent" table records it. Section 0.10.1 states the two differences for Section 0.10 (GO / WAIT / DETOUR in place of Left / Right / Detour, and corridors not being extracted); the original text of Section 0.10 is unchanged.
 
 ## Differences from the original code (now in `Dubins_TSP_Antigravity/`)
 
