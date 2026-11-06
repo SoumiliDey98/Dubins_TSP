@@ -133,7 +133,57 @@ are not guarantees.
 | Mission time added, all sinks on all maps | 276.5 s | 269.5 s |
 | Extra distance, all maps | 4.9 m | 0 m |
 
-Coverage, budget, obstacle clearance and turning radius held on every map with both methods. On its own the game clearly removes more conflicts. With the repair step the two are close, and neither is better on every measure; 10 maps are too few to rank them. Compare any map with `python planner.py --seed N --no-plot` and the same command with `--resolver simple`.
+Coverage, budget, obstacle clearance and turning radius held on every map with both methods. On its own the game clearly removes more conflicts. With the repair step the two are close, and neither is better on every measure; 10 maps are too few to rank them, so the comparison below uses 30. Compare any map with `python planner.py --seed N --no-plot` and the same command with `--resolver simple`.
+
+### The same comparison on 30 maps
+
+Seeds 1–30, measured on 2026-11-06 with scripts that are not in the repository. Seeds 1–10 reproduce the table above. `output/compare_resolvers.pdf` is the illustrated report on this comparison, with figures for everything below. Both methods start from the same planned routes and are scored by the same check.
+
+| | Conflict game | Simple rule |
+|---|---|---|
+| **Resolver alone** (506 conflicting pairs, 1201.0 s of risk before): pairs left | 17 | 50 |
+| Risk left | 13.0 s | 103.5 s |
+| Maps with no conflict | 17 of 30 | 7 of 30 |
+| Maps with less risk left (5 tie, Wilcoxon p < 0.001) | 22 | 3 |
+| **With the Step 12 repair** (the default): pairs left | 8 | 12 |
+| Risk left | 6.0 s | 20.0 s |
+| Maps with no conflict | 22 of 30 | 20 of 30 |
+| Maps with less risk left (20 tie, p = 0.06) | 8 | 2 |
+| Worst closest approach (d_safe = 3 m) | 0.28 m | 0.04 m |
+| Maps closer than 1 m | 3 | 5 |
+| Mean T_max | 76.45 s | 74.63 s |
+| Mission time added, all sinks on all maps | 991.5 s | 795.0 s |
+| Extra distance, all maps | 10.7 m | 0 m |
+| CPU time for Steps 8–12, per map | 2.9 s | 5.0 s |
+
+Both methods give K = 470 and L_total = 88,044–88,045 m. Coverage, budget and turning radius held on every map with both.
+
+- **Which is better.** The game is better on eq. 20 and the simple rule on T_max. On the 18 maps where both end with no conflict, the simple rule has the lower T_max on 10, the game on 1, and 7 are equal, so the case for the game rests on eq. 20 being a constraint.
+- **Seeds 1–10 flatter both methods.** Each ends with no conflict on 9 of those 10 maps, but only 13 of 20 (game) and 11 of 20 (simple rule) on seeds 11–30.
+- **Heavier traffic.** With the same routes and a larger d_safe, resolver alone, the simple rule collapses just above the default:
+
+| d_safe (m) | 2 | 2.5 | 3 | 3.25 | 3.5 | 4 | 5 | 6 | 8 |
+|---|---|---|---|---|---|---|---|---|---|
+| Risk removed, game | 99 % | 99 % | 99 % | 99 % | 99 % | 97 % | 96 % | 82 % | 65 % |
+| Risk removed, simple rule | 99 % | 97 % | 91 % | 33 % | 23 % | 20 % | 18 % | 20 % | 20 % |
+
+- **Why the simple rule gives up.** A stop is accepted only if the whole window is clear, or no stop is made at all (219 give-ups, with a median of 25 s of budget left; B = 120 s changes nothing). Only the later sink in the order may yield, even when it is in front of the other (18 of 26 same-way conflicts left). Its five looks are stricter than the final check near the base: 520 steps in the plans are flagged only by them, 509 of those in the first 5 s, and they missed no conflict. Near the base the earliest stop is 2.5 m out, and a sink leaving on the same heading is 3.125 m from it at its first look outside the docking zone, which causes the collapse above that d_safe.
+- **Why the game leaves conflicts.** `exposure` counts risk to the end of the mission, so a stop is charged for later conflicts that later games could solve. On seed 5, sink 5 keeps GO (3.5 s in total) over a 6.0 s WAIT (4.0 s in total, none of it in the next 6 s), which leaves a 0.28 m near-miss. Timing changes also cannot fix a head-on meeting when no DETOUR fits (seed 24). DETOUR is a small part of the game's lead: chosen in 11 of 613 decisions, and removing it leaves 15.5 s.
+
+**What-if variants, resolver alone.** These were patched in memory for the measurement and are not in the code.
+
+| Variant | Risk left, d_safe = 3 m | Maps with no conflict | Mission time added | Risk left, d_safe = 4 m |
+|---|---|---|---|---|
+| Simple rule as written | 103.5 s | 7 | 817.0 s | 1295.5 s |
+| Simple rule, shortest tour first | 99.0 s | 7 | 887.0 s | not run |
+| Simple rule, exact closest-distance test | 63.0 s | 10 | 809.5 s | 111.5 s |
+| Simple rule, accepting the lowest-risk stop | 33.5 s | 10 | 914.0 s | 66.5 s |
+| Simple rule, both fixes | 31.0 s | 10 | 840.5 s | 62.0 s |
+| Game without DETOUR | 15.5 s | 16 | 985.0 s | not run |
+| Game as written | 13.0 s | 17 | 971.5 s | 43.5 s |
+| Game, `exposure` limited to the next 10 s | 6.5 s | 24 | 985.5 s | 21.0 s |
+
+Through the full Steps 8–12, the game with the 10 s limit leaves 3.0 s of risk (4 pairs), ends with no conflict on 27 of 30 maps, has a worst closest approach of 2.43 m and a mean T_max of 75.65 s. It is better than the game as written on 7 maps and worse on 2. Coverage and budget held, and curvature × R reached 1.094 (limit 1.15). It has not been through the tests.
 
 ## Shortest of six or the rule of Section 0.13? (measured on the same 10 maps)
 
@@ -254,6 +304,7 @@ Only Section 0.13 was compared with the code line by line. Where the code is kno
 
 ## Limitations
 
+- Obstacle clearance (eq. 19) is not always met. On seed 22, outside the 10 maps of the main table, sink 13 passes 1.41 m from an obstacle against r_safe = 2 m in the plan, before any resolver runs. `planner.py` prints the value without flagging it. The cause has not been investigated.
 - Sinks follow the planned timing exactly (open loop) and can stop and restart at once (needed for WAIT and for dwelling at sensors).
 - Between frames, sinks are assumed to move in a straight line when conflicts are checked.
 - Headings come from a discrete set (16 directions + bisector), not a continuous optimum.

@@ -48,6 +48,7 @@ python -m pytest tests/run_tests.py -k "not end_to_end and not same_seed"   # sk
 - `output/seed1.png`, `seed1_simple.png`, `seed2.png`, `seed3.png` and `seed3_simple.png` are tracked in git, so plotting those runs dirties the tree. Use `--no-plot` for checks.
 - There is no `.gitignore`: the user had it deleted. `__pycache__/` and GIFs are therefore not ignored, so stage files by name instead of using `git add -A`, and run Python with `PYTHONDONTWRITEBYTECODE=1` so that `__pycache__/` is not created.
 - Reading PDFs: `poppler-utils` lets the Read tool show PDF pages as images, which is the reliable way to read equations; extracted text garbles them. It was installed in this codespace on 2026-11-05, and a new codespace needs `sudo apt-get install -y poppler-utils`. Section 0.13 is on PDF pages 10-15.
+- A codespace restart wipes `/tmp`, including the session scratchpad, so a long measurement kept only there can be lost. Write results per seed so a run can resume, and copy what must survive before leaving a run idle.
 - PDF viewer in VS Code: `analytic-signal.preview-pdf`, installed with `~/.vscode-remote/bin/*/bin/remote-cli/code --install-extension analytic-signal.preview-pdf`. The plain `code` command does not work from the agent shell, and `tomoki1207.pdf` refuses to install on a Codespace. A new codespace needs this again.
 
 ## Architecture
@@ -144,15 +145,25 @@ Only Section 0.13 was compared with the code line by line. Where the code is kno
 ## Open items
 
 1. **Section 0.13 of `Dubins_TSP.pdf` is marked up and waiting for the user**, who will remove the lines shaded red (R1-R8). The user has said not to edit the PDF again for now. The full list is under "Changes marked in `Dubins_TSP.pdf`" above.
-2. **Eq. 20 is not guaranteed.** Conflicts are reported, not always removed. Default mode leaves one on seed 5 (closest 0.28 m against `d_safe` = 3 m); `pdf` mode leaves them on seeds 5 and 9 (1.30 m and 1.88 m).
+2. **Eq. 20 is not guaranteed.** Conflicts are reported, not always removed. On seeds 1-30 the game leaves conflicts on 8 maps (5, 15, 17, 19, 24, 26, 27, 28; worst 0.28 m on seed 5, against `d_safe` = 3 m) and the simple rule on 10 (worst 0.04 m). On seeds 1-10, `pdf` mode leaves them on seeds 5 and 9 (1.30 m and 1.88 m).
 3. **No dedicated test for the detour fix below.** Only `test_end_to_end_with_pdf_rule` (seed 1) exercises it.
 4. **The `pdf` cost depends on the fallback.** Fallback legs use the true shortest word, and the heading search uses them more than the default plan's poses would (4.0 % against 1.7 % of legs). A different fallback, which the paper would have to define, would change the +2.4 %. No other fallback has been measured.
 5. **The docking-zone check sits on an exact limit.** `conflict_game.closest` and `simple_resolver.too_close` test `distance <= base_radius`. With `v` = 5 and `dt` = 0.5, a sink leaving the base in a straight line is exactly 5.0 m = `base_radius` from it after two frames, so rounding of about 1e-15 m can decide the exemption. This changed the result of seed 2 on 2026-11-05 (see the work log). Not fixed: a tolerance would change conflict detection, which is the user's decision and needs a re-measure.
-6. **Some README numbers have no script in the repo.** The "after game alone" pairs, the strategy counts and the game-versus-simple table came from a throwaway script on 2026-11-05. It reproduced the previous README totals when given the old code on seed 2.
+6. **Some README numbers have no script in the repo.** The "after game alone" pairs, the strategy counts and the game-versus-simple table came from a throwaway script on 2026-11-05. It reproduced the previous README totals when given the old code on seed 2. The 30-map comparison and its what-if variants of 2026-11-06 also came from throwaway scripts in the session scratchpad.
+7. **Seed 22 breaks eq. 19 in the plan.** Sink 13 passes 1.41 m from an obstacle against `r_safe` = 2 m, before any resolver runs. `planner.py` prints the value without flagging it, and `problems` stays empty. The cause has not been investigated.
+8. **Decision for the user: limit the game's look-ahead?** `conflict_game.exposure` counts risk to the end of the mission. Limiting it to the next 10 s (20 frames), patched in memory, gave 27 of 30 clean maps and 3.0 s of risk after repair, against 22 and 6.0 s. It is not in the code and has not been through the tests. It would change the results in the README's tables.
+9. **Decision for the user: fix `simple_resolver.py` if it stays as the paper's baseline?** Its all-or-nothing stop and its stricter five-look test near the base make it collapse just above `d_safe` = 3 m. With both fixed, patched in memory, it leaves 31.0 s against 103.5 s, resolver alone. Not in the code.
 
 ## Work log
 
 Newest first.
+
+### 2026-11-06
+
+- **Compared `conflict_game.py` and `simple_resolver.py` on seeds 1-30**, at the user's request, and published an illustrated report: https://claude.ai/artifact/AiPAeR9qeArao1uUxenVQN (private to the user until shared). The table and what-if variants are in the README under "The same comparison on 30 maps". The verdict is that the game is better: resolver alone it leaves 13.0 s of risk against 103.5 s, and after repair 6.0 s against 20.0 s, with 22 and 20 of 30 maps clean (p = 0.06 after repair, so that last lead is not conclusive). The simple rule is better on T_max (74.63 s against 76.45 s), and on the 18 maps where both end clean it has the lower T_max on 10. Seeds 1-10 reproduced the README's earlier table. No resolver code changed; every variant was patched in memory. New open items 7-9; open item 2 updated.
+- **Saved the report as a PDF**, at the user's request: `Dubins_TSP_New_Implementation_claude/output/compare_resolvers.pdf` (A4, 12 pages, static copy of the online report; all three incidents shown, tables expanded, Figure 7 on seed 1). It was printed with a temporary headless browser in the scratchpad, so `planner.py` and `plot.py` do not produce it. While checking it, Figure 6's distance charts were found to plot whole frames only, which hid the true closest approach between frames; this was fixed in both the PDF and the online report.
+- **A codespace restart lost the first run.** It wiped `/tmp`, including the scratchpad, while the session was idle partway through the work. The main run was repeated and every total measured twice matched. The stress totals at `d_safe` 2, 5, 6 and 8 m, the B sweep, and the give-up and leftover counts are kept from the first run.
+- **Commit status.** The README, this file and the PDF were not committed. The PDF is a new untracked file.
 
 ### 2026-11-05
 
