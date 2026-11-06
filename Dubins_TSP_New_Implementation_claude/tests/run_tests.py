@@ -155,6 +155,22 @@ def test_compare_counts_fallback_legs_as_missing_not_shortest():
     assert seen == set(compare_dubins.LEG_KINDS)
 
 
+def test_compare_example_legs_show_what_their_titles_say():
+    expected = ("shortest", "longer", "longer", "missing")
+    legs = compare_dubins.example_legs(P["R"])
+    assert [leg["kind"] for leg in legs] == list(expected)
+    assert legs[1]["rule"][1] == "S" and legs[2]["rule"][1] != "S" and legs[2]["shortest"]["turnType"][1] == "S"   # CSC, then CCC
+    for leg in legs:
+        assert leg["feasible"]["length"] >= leg["shortest"]["length"] - 1e-9
+        for name in ("shortest", "feasible"):                    # both paths really join the two poses
+            assert np.hypot(leg[name]["x"][-1] - leg["q1"][0], leg[name]["y"][-1] - leg["q1"][1]) < 1e-6
+
+
+def test_compare_distance_bands_add_up():
+    for band in compare_dubins.distance_bands(P["R"], n=40):
+        assert abs(sum(band[k] for k in compare_dubins.LEG_KINDS) - 1) < 1e-9 and band["extra"] >= 0
+
+
 # ---------------------------------------------------------------- geodesic distances (eq. 9)
 
 def test_geodesic_distances():

@@ -19,6 +19,7 @@ python planner.py --seed 1 --gif         # also output/seed1.gif (slow)
 python planner.py --seed 1 --resolver simple   # "wait your turn" instead of the game; output/seed1_simple.png
 python planner.py --seed 1 --dubins pdf  # turn-type rule of Section 0.13; output/seed1_pdf.png
 python compare_dubins.py                 # both Dubins methods on seeds 1–10, 10–13 minutes on 2 cores
+python compare_dubins.py --figures       # the same, and also saves output/compare_*.png
 python tests/run_tests.py                # all tests, about 5 minutes
 ```
 
@@ -39,8 +40,8 @@ To change any parameter, edit `config.py` or pass it to
 | `conflict_game.py` | eq. 20, 0.10 | Conflict detection and the GO / WAIT / DETOUR best-response game (from `theory_claude/corridor_game_gt.py`). |
 | `simple_resolver.py` | eq. 20 | The simplest alternative to the game, no game theory: sinks take turns, longest tour first; each stops just long enough to clear a meeting. |
 | `planner.py` | 0.6, 0.11 | Steps 1–12, the checks of Section 0.7, the objectives K, T_max, L_total, and the command line. |
-| `compare_dubins.py` | 0.13 | Runs both Dubins methods on the same maps and prints the numbers of the comparison below. |
-| `plot.py` | — | PNG of the routes; optional GIF. |
+| `compare_dubins.py` | 0.13 | Runs both Dubins methods on the same maps and prints the numbers of the comparison below; `--figures` also saves its five figures. |
+| `plot.py` | — | PNG of the routes; optional GIF; the comparison figures. |
 | `tests/run_tests.py` | — | Unit tests per module plus end-to-end runs. |
 
 ## How it works (Section 0.11)
@@ -136,9 +137,9 @@ Coverage, budget, obstacle clearance and turning radius held on every map with b
 
 ## Shortest of six or the rule of Section 0.13? (measured on the same 10 maps)
 
-`dubins_method="shortest"` is the default. `dubins_method="pdf"` picks the word from the signs of cp1 and cp2 and from S_tan, as Section 0.13 describes. Each method plans its own routes on seeds 1–10, with the conflict game. All values are totals over the 10 maps unless stated. `python compare_dubins.py` prints every number in this section, plus a row per map; add `--seeds N` for chosen maps.
+`dubins_method="shortest"` is the default. `dubins_method="pdf"` picks the word from the signs of cp1 and cp2 and from S_tan, as Section 0.13 describes; it gives a feasible path, which is not always the shortest. Each method plans its own routes on seeds 1–10, with the conflict game. All values are totals over the 10 maps unless stated. `python compare_dubins.py` prints every number in this section, plus a row per map; add `--seeds N` for chosen maps.
 
-| | Shortest of six | Rule of Section 0.13 |
+| | Shortest of six | Rule of Section 0.13 (feasible) |
 |---|---|---|
 | Sinks K | 155 | 156 |
 | L_total | 28816 m | 29506 m (+2.4 %, longer on every map) |
@@ -162,6 +163,33 @@ Coverage, budget, obstacle clearance and turning radius held on every map with b
 | Rule's word does not exist (fallback) | 25 of 1505 (1.7 %) | 61 of 1509 (4.0 %) |
 
 The heading search steers the plan towards poses where the rule's word is the shortest, so the cost appears as less favourable headings, not as bad individual legs. Fallback legs are the true shortest by construction, so the search has no reason to avoid them, and a different fallback would change the +2.4 %.
+
+**How the rule does by leg length.** With `--figures`, the script also prints this table, from 5000 random poses per band. They are random, so this is not the planner's cost: the heading search avoids many of these poses. Mean extra length includes fallback legs, which have none.
+
+| Distance between the two points | Rule's word is the shortest | Exists but is longer | Does not exist (fallback) | Mean extra length |
+|---|---|---|---|---|
+| 0-10 m | 8.6 % | 43.1 % | 48.3 % | +30.3 % |
+| 10-20 m | 39.0 % | 35.6 % | 25.4 % | +39.1 % |
+| 20-40 m | 84.9 % | 15.1 % | 0.0 % | +10.1 % |
+| 40-100 m | 95.2 % | 4.8 % | 0.0 % | +1.2 % |
+
+**Speed.** Measured once with nothing else running, on seeds 1-4, with the shortest-of-six run first on each map; `compare_dubins.py` does not print these.
+
+| | Shortest of six | Rule of Section 0.13 (feasible) |
+|---|---|---|
+| One path | 251 µs | 32 µs |
+| Heading table for one leg (289 heading pairs) | 0.59 ms | 1.79 ms |
+| Whole planner, mean per map | 32.8 s | 27.4 s |
+
+The rule's saving on single paths most likely outweighs its slower table, because it needs all six lengths only when its word does not exist.
+
+**Figures** (`python compare_dubins.py --figures`, saved in `output/`):
+
+- `compare_example_legs.png`: both paths on four example legs.
+- `compare_extra_length.png`: extra total length on each map.
+- `compare_same_tour.png`: the tour that changes most on the first seed, drawn with both methods.
+- `compare_leg_types.png`: how the rule's word does on the legs of each final plan.
+- `compare_by_distance.png`: the table above, by leg length.
 
 ## Changes marked in `Dubins_TSP.pdf` (Section 0.13)
 
