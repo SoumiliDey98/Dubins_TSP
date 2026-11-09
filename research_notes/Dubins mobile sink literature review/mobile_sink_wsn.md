@@ -11,6 +11,8 @@
 
 "Draft" means the paper being assessed.
 
+**Follow-up on 2026-11-09:** see [follow_up_2026-11-09.md](follow_up_2026-11-09.md). The abstracts of Kumar & Mukherjee 2026 and Srinivas et al. 2020 were read; statements this changed are marked "(2026-11-09)".
+
 ## How close is the prior art overall?
 
 ### Takeaway
@@ -27,8 +29,8 @@ No single paper I found combines all of: fleet-size minimisation under a time bu
 | [Roberge & Tarbouchi 2021, Sensors 21(20)](https://doi.org/10.3390/s21206851) | No, 3 UAVs | No | No-fly zones | Yes, wait repair | 170 m range, SNR model | FT* |
 | [Xu et al. 2022, IEEE/ACM ToN 30(2)](https://doi.org/10.1109/tnet.2021.3123606) | **Yes, 4-approx.** | No | None found | None found | Data volume and rate; radio range in one variant | FT |
 | [Kumar & Mukherjee 2023, Ad Hoc Netw. 149](https://doi.org/10.1016/j.adhoc.2023.103239) | **Yes, constant factor** | Unknown | Yes | Unknown | Unknown | SNIP |
-| [Kumar & Mukherjee 2026, COMSNETS](https://doi.org/10.1109/comsnets67989.2026.11418194) | **Yes (title)** | Unknown | Yes (CV) | Unknown | Unknown | META |
-| [Fu et al. 2026, IEEE T-ITS 27](https://doi.org/10.1109/tits.2025.3645094) | Unknown | **Yes (title)** | Unknown | Unknown | Unknown | META |
+| [Kumar & Mukherjee 2026, COMSNETS](https://doi.org/10.1109/comsnets67989.2026.11418194) | **Yes, approximation algorithm** | Not in abstract | Yes | Not in abstract | Distance limit L per sink | ABS (2026-11-09) |
+| [Fu et al. 2026, IEEE T-ITS 27](https://doi.org/10.1109/tits.2025.3645094) | Not in abstract | **Yes** | 3-D obstacles | Not in abstract; synchronised arrival at recovery | Communication throughput constraint | ABS (2026-11-09) |
 | [Rahman et al. 2022, Appl. Sci. 12(22)](https://doi.org/10.3390/app122211509) | No, minimises total distance | Not stated | Yes | Not stated | Not stated | ABS |
 
 "None found" means a word search of the text I had for robot-to-robot collision language found nothing. It is not proof of absence.
@@ -39,7 +41,7 @@ No single paper I found combines all of: fleet-size minimisation under a time bu
 - Roberge & Tarbouchi is the nearest neighbour on method: genetic algorithm plus 2-opt, no-fly zones, then a pairwise check at equal time steps repaired by waiting. That is close to the draft's GA and `simple_resolver`.
 
 ### Gaps
-- Fu et al. 2026 and Kumar & Mukherjee 2026 could be close prior art, and I read neither (see the last section). The user should read both before claiming novelty.
+- Fu et al. 2026 and Kumar & Mukherjee 2026 could be close prior art, and I read neither (see the last section). The user should read both before claiming novelty. (2026-11-09) Both abstracts are now read, and neither mentions conflicts between vehicles. Kumar & Mukherjee 2026 is confirmed as prior art for the draft's first objective. Both full texts are closed.
 
 ## What does Kumar and Mukherjee (2023) do?
 
@@ -67,7 +69,7 @@ It minimises the number of mobile sinks needed to collect data periodically from
 ### Inferences
 - MinSnkDC reads as the Dash (2018) problem with obstacles added, but I could not confirm that the paper says so.
 - Differences from the draft that I can support: its sensors move, while the draft's are static; and it has approximation guarantees, while the draft's bisection has none that I know of. On the draft's first objective it is prior art, not merely background.
-- The closest paper in this line is probably not the 2023 one. [Kumar & Mukherjee 2026, COMSNETS, pp. 1-9](https://doi.org/10.1109/comsnets67989.2026.11418194), "An Approximation Algorithm for Minimizing the Number of Distance Constrained Mobile Sinks for Data Collection from Static and Mobile Sensors" [META], covers static sensors and a per-sink distance bound, which is equivalent to the draft's time budget at constant speed and without dwell. The CV description suggests it also has obstacles.
+- The closest paper in this line is probably not the 2023 one. [Kumar & Mukherjee 2026, COMSNETS, pp. 1-9](https://doi.org/10.1109/comsnets67989.2026.11418194), "An Approximation Algorithm for Minimizing the Number of Distance Constrained Mobile Sinks for Data Collection from Static and Mobile Sensors" [META], covers static sensors and a per-sink distance bound, which is equivalent to the draft's time budget at constant speed and without dwell. The CV description suggests it also has obstacles. (2026-11-09) The abstract [ABS] confirms this: "minimize the number of MoSs and determine their data collection tours, which avoid any collision with obstacles in the area, subject to the constraint that the total distance travelled by an MoS is no greater than L", by an approximation algorithm "and the theoretical analysis of the algorithm". It is compared "with existing obstacle-aware MoS-based data collection algorithms".
 
 ### Gaps
 - **Not known, because I could not read the full text:** the approximation ratios, the obstacle model, how obstacle-avoiding distances are computed, whether sinks have any kinematic limits, whether sinks avoid one another, radio range, simulation setup and baselines.
@@ -122,7 +124,7 @@ Most multi-sink papers take the number of sinks k as an input and minimise the l
 - History of the unrooted problem, as Xu et al. report it: 6-approximation (Arkin, Hassin & Levin 2006), 5-approximation (Khani & Salavatipour 2014), 4 2/3 and 4 4/7 (Yu, Liu & Bao 2019), then 4 — [Xu et al. 2022](https://www.cs.cityu.edu.hk/~weliang/papers/XXZLXLJD22.pdf) [FT; these sources are seen only in its reference list].
 - **Rooted case, which is the draft's** (every tour starts and ends at the base): Nagarajan & Ravi 2012 give O(log B), though tours may exceed the bound. Liang et al. 2016 and Zhang et al. (Wireless Netw. 25) give algorithms that respect it — [Xu et al. 2022](https://www.cs.cityu.edu.hk/~weliang/papers/XXZLXLJD22.pdf) [FT; sources seen only in its reference list; both concern charging vehicles].
 - Xu et al. warn that searching K = 1 to n with a min-max solver until the longest tour fits B "does not deliver a constant approximate solution" — [Xu et al. 2022](https://www.cs.cityu.edu.hk/~weliang/papers/XXZLXLJD22.pdf).
-- WSN mobile sink versions: [Dash 2018](https://doi.org/10.1016/j.pmcj.2018.02.006) [ABS], Kumar & Mukherjee 2023 and 2026, and [Srinivas, Donta & Amgoth 2020, Comnetsat](https://doi.org/10.1109/comnetsat50391.2020.9328947) [META].
+- WSN mobile sink versions: [Dash 2018](https://doi.org/10.1016/j.pmcj.2018.02.006) [ABS], Kumar & Mukherjee 2023 and 2026, and [Srinivas, Donta & Amgoth 2020, Comnetsat](https://doi.org/10.1109/comnetsat50391.2020.9328947) [ABS, 2026-11-09]. Srinivas et al. use "a close approximation of minimum perfect matching" followed "by an Euler circuit" to find the minimum number of mobile sinks; the abstract mentions no obstacles or kinematics.
 
 **k given, longest tour minimised**
 - [k-SVPP in Huang & Savkin 2017](https://arxiv.org/pdf/1712.02436) [FT]: builds one viable path, splits it by k-SPLITOUR (Frederickson, Hecht & Kim 1978), then rebuilds each path. It minimises the longest path and is tested at k = 2 and 3.
@@ -206,7 +208,7 @@ There is a real, if thin, line of 2D Dubins data collection going back to at lea
 - The draft's dwell equals data volume divided by rate. At 250 kB/s, 1-5 s is 0.25-1.25 MB. Stating it this way would align the draft with the data models in this line at no cost.
 
 ### Gaps
-- Fu et al. 2026 is unread, and it is the most important remaining check on this question.
+- Fu et al. 2026 is unread, and it is the most important remaining check on this question. (2026-11-09) Its abstract [ABS] confirms Dubins paths, several heterogeneous UAVs, 3-D obstacles and "a time synchronous Dubins recycling strategy to plan the simultaneous arrival trajectory for multiple UAVs". The full text is closed, and none of its 11 citing works in OpenAlex is close.
 - The Crossref title scan misses papers without "Dubins" in the title. Huang & Savkin itself would not have been caught by it, so more such papers probably exist.
 
 ## Which works address collision avoidance between sinks or UAVs, and is it usually ignored?
@@ -319,7 +321,7 @@ The main limit is access: several key papers are paywalled, and a shared search 
 - [UNVERIFIED] That the ResearchGate paper on cluster-based routing with obstacles is IEEE Access 2016 by Tang and others. The DOI I guessed for it resolved to an unrelated paper.
 
 **Limits**
-- **Search budget.** The shared web search limit for this session was reached during the last round, so follow-up searches on Fu et al. 2026, Kumar & Mukherjee 2026, Srinivas et al. 2020 and Boyineni et al. 2023 did not run. Sending a follow-up message, or raising `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION`, would allow them.
+- **Search budget.** The shared web search limit for this session was reached during the last round, so follow-up searches on Fu et al. 2026, Kumar & Mukherjee 2026, Srinivas et al. 2020 and Boyineni et al. 2023 did not run. (2026-11-09) The first three were looked up; see the follow-up note. Sending a follow-up message, or raising `CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION`, would allow them.
 - **Title scan only.** Systematic scans used Crossref's top 300 title matches, filtered on title words. Papers with these terms only in the abstract are missed; Huang & Savkin is one such paper.
 - **Services unavailable.** OpenAlex's shared daily budget was used up; it offered a key tied to an email address, which I did not request. DBLP put up a bot check, so all 20 planned title queries failed, and I did not try to get past it. Semantic Scholar's batch endpoint was rate limited, though single lookups worked.
 - **Publishers.** ScienceDirect and MDPI returned 403, Springer redirected to login, and IEEE Xplore returned empty pages. I did not use proxies. Google Scholar was not accessed.
@@ -329,4 +331,4 @@ The main limit is access: several key papers are paywalled, and a shared search 
 - The absence of title hits on sinks and collisions is suggestive, not conclusive, given the title-only limit and the term "collision" being used for radio in this field.
 
 ### Gaps
-- Papers to obtain through a library before submission, in order: Fu et al. 2026; Kumar & Mukherjee 2026; Kumar & Mukherjee 2023; Temene et al. 2022 (to check the draft's citation is apt); Wichmann & Korkmaz 2015; Srinivas et al. 2020.
+- Papers to obtain through a library before submission, in order: Fu et al. 2026; Kumar & Mukherjee 2026; Kumar & Mukherjee 2023; Temene et al. 2022 (to check the draft's citation is apt); Wichmann & Korkmaz 2015; Srinivas et al. 2020. (2026-11-09) OpenAlex lists all six as closed access, with no repository copy. Kumar & Mukherjee are at IIT Bhubaneswar and SVNIT Surat, so their two papers can probably be had from the authors.

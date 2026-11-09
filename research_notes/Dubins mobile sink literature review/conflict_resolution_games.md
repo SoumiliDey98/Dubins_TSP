@@ -2,6 +2,8 @@
 
 Prepared 2026-11-06. Scope: the draft's conflict game (GO / WAIT / DETOUR), its simple rule (turns, longest tour first), and its repair step.
 
+**Follow-up on 2026-11-09:** see [follow_up_2026-11-09.md](follow_up_2026-11-09.md). Kavuncu 2021 and MAPF-LNS2 were read in full, and Picard 2022 was found; statements it changed are marked "(2026-11-09)". Zanardi 2021 and Fabiani & Grammatico 2020 are still unread.
+
 **How to read the evidence tags.** Each cited claim carries one tag saying how far it was checked.
 
 - **[FT]** I opened the paper's full text and read the passage.
@@ -17,13 +19,14 @@ Every DOI in these notes was resolved against Crossref on 2026-11-06. At least s
 No paper found combines the draft's exact elements, but each element on its own has clear precedent. The exact potential property is a routine consequence of symmetric pairwise coupling. The safest claim is a new combination plus a measured comparison on pre-planned Dubins sink routes, not a new class of game.
 
 ### Cited Findings
-- Symmetric pairwise coupling is already a stated sufficient condition for a dynamic potential game. If `C_ca^ij(x_i, x_j) = C_ca^ji(x_j, x_i)`, the potential is the sum of private costs plus each pair's coupling counted once, and equilibria come from "a single optimal control problem". This is the same structure as the draft's potential. — [Williams, Chen, Mehr 2023](https://arxiv.org/abs/2303.04842) [FT], crediting [Kavuncu, Yaraneri, Mehr 2021](https://doi.org/10.15607/RSS.2021.XVII.084) [SR]
+- Symmetric pairwise coupling is already a stated sufficient condition for a dynamic potential game. If `C_ca^ij(x_i, x_j) = C_ca^ji(x_j, x_i)`, the potential is the sum of private costs plus each pair's coupling counted once, and equilibria come from "a single optimal control problem". This is the same structure as the draft's potential. — [Williams, Chen, Mehr 2023](https://arxiv.org/abs/2303.04842) [FT], crediting [Kavuncu, Yaraneri, Mehr 2021](https://doi.org/10.15607/RSS.2021.XVII.084) [FT, [arXiv 2107.04926](https://arxiv.org/abs/2107.04926), 2026-11-09]: "interactions where the mutual couplings between the agents are symmetric, are indeed potential differential games"
 - The closest theoretical precedent is Urban Driving Games. Preferences are lexicographic with "the shared objective of not colliding" first, communal games are lexicographic ordinal potential games, "socially efficient equilibria can be found by solving a single (lexicographic) optimal control problem", and iterated best response has convergence guarantees. — [Zanardi et al. 2021](https://doi.org/10.1109/LRA.2021.3068657) [AB]
 - Finite trajectory sets with prioritised metrics and pure equilibria are also covered: "autonomous vehicles select from a finite set of trajectories". — [Zanardi et al. 2022, Posetal Games](https://doi.org/10.1109/LRA.2021.3135030) [AB]
 - Mixed discrete decisions, a potential game and best-response algorithms inside open- and closed-loop policies are treated for selfish highway vehicles. — [Fabiani, Grammatico 2020](https://doi.org/10.1109/TITS.2019.2901505) [AB]
 - Whole-trajectory, open-loop, non-cooperative games with robots improving in turn are treated with convergence to Nash equilibria and a price of stability of one for scalar costs. — [Zhu, Otte, Chaudhari, Frazzoli 2014](https://arxiv.org/abs/1402.2708) [FT]
 - Time-ordered conflict handling exists without any game: NASA's Autoresolver works down a conflict list ordered by "predicted time to first loss of separation", defers conflicts beyond a threshold, and rejects trial trajectories that create secondary conflicts. — [Erzberger, Lauderdale, Chu 2010](https://icas.org/ICAS_ARCHIVE/ICAS2010/PAPERS/197.PDF) [FT]
-- A repair loop that replans only the colliding agents is the published MAPF-LNS2 method. — [Li et al. 2022](https://doi.org/10.1609/aaai.v36i9.21266) [SR]
+- A repair loop that replans only the colliding agents is the published MAPF-LNS2 method. — [Li et al. 2022](https://doi.org/10.1609/aaai.v36i9.21266) [FT, 2026-11-09]
+- (2026-11-09) Discrete per-conflict manoeuvres on pre-planned trajectories, with conflicts weighted first, are published for UAVs: "postpone(c, 20), elevate(c, −15), elevate(c, +15) and skip(c)", with cost "ω² · v_conflict + ω · v_missed + v_delay". It is solved as a DCOP with DSA and MGM-2 among the solvers. Its UAVs can hover. — [Picard 2022, AAMAS](https://ifaamas.csc.liv.ac.uk/Proceedings/aamas2022/pdfs/p1065.pdf) [FT]
 - Measurements in this repo affect how strongly the comparison can be stated:
   - Resolver alone, the game leaves 13.0 s against 103.5 s for the simple rule. With two fixes to the simple rule (exact closest-distance test, accepting the lowest-risk stop) it leaves 31.0 s, and the game without DETOUR leaves 15.5 s.
   - The 10 s look-ahead was "patched in memory", is not in the code and "has not been through the tests".
@@ -45,6 +48,7 @@ No paper found combines the draft's exact elements, but each element on its own 
   5. Feurgard et al. 2026, for Dubins candidates and a pairwise separation table, solved by ILP and not by a game.
   6. Erzberger's Autoresolver, for time order.
   7. Hu et al. 2024, for a game-theoretic reading of priority order.
+  - (2026-11-09) Picard 2022 belongs near the top of this list, for discrete per-conflict manoeuvres (postpone, elevate, skip) on pre-planned UAV trajectories, solved by DCOP algorithms. It is not called a game, but Chapman et al. place DCOPs inside potential games.
 - **What reviewers will probably ask**, most likely first:
   1. Why use a game with a central planner holding full knowledge?
   2. Why not minimise the potential directly?
@@ -62,7 +66,7 @@ No paper found combines the draft's exact elements, but each element on its own 
   - The 10 s value also appears to have been chosen on the same maps, so it needs held-out maps. The exposure gap is the stronger evidence.
 
 ### Gaps
-- I could not open the full text of Zanardi 2021 or Fabiani and Grammatico 2020, the two most important prior papers. Both must be read before any novelty claim is submitted. In particular, check whether Zanardi's iterated best response assumptions fit discrete manoeuvres.
+- I could not open the full text of Zanardi 2021 or Fabiani and Grammatico 2020, the two most important prior papers. Both must be read before any novelty claim is submitted. In particular, check whether Zanardi's iterated best response assumptions fit discrete manoeuvres. (2026-11-09) Both are green open access, but still unread: the [ETH copy](https://www.research-collection.ethz.ch/bitstreams/1828b7c4-9f91-4557-bc5c-4ab463b81087/download) returned HTTP 429 to this network and the [TU Delft copy](http://resolver.tudelft.nl/uuid:335da4d1-cc2d-41be-b0ed-e72c42dc5f3e) refused connections. Both should download in a browser.
 - No search can prove absence. "Not found" here means not found with the queries listed in the last section.
 
 ## What is the foundation: path-velocity decomposition, prioritized planning, and optimal or near-optimal MAPF?
@@ -90,7 +94,7 @@ The simple rule is prioritized planning with velocity tuning on fixed paths, and
 - **K-CBS.** Described as probabilistically complete, with any sampling-based tree planner at the low level. — [Kottinger, Almagor, Lahijanian 2022](https://doi.org/10.1109/IROS47612.2022.9982018) [SR]
 - **CL-CBS.** For car-like robots, with Spatiotemporal Hybrid-State A* at the low level. — [Wen, Liu, Li 2022](https://doi.org/10.1016/j.robot.2021.103997) [SR]
 - **db-CBS.** Combines CBS with discontinuity-bounded A* for dynamics constraints. — [Moldagalieva et al. 2024](https://doi.org/10.1109/icra57147.2024.10610999) [SR]. A 2026 follow-on, [db-LaCAM](https://doi.org/10.1609/icaps.v36i1.42894), exists [META].
-- **Repair.** MAPF-LNS2 starts from colliding paths and repeatedly replans a group of colliding agents. It is compared with prioritized planning with random restarts, EECBS and PPS. — [Li et al. 2022](https://doi.org/10.1609/aaai.v36i9.21266) [SR]
+- **Repair.** MAPF-LNS2 starts from colliding paths and repeatedly replans a group of colliding agents. It is compared with prioritized planning with random restarts, EECBS and PPS. — [Li et al. 2022](https://doi.org/10.1609/aaai.v36i9.21266) [FT, 2026-11-09]. Its acceptance rule: it "replaces the old plan P with the new plan (P \ P−) ∪ P+ iff the number of colliding pairs (CP) of the paths in the new plan is no larger than that of the old plan". It is incomplete: "Even when MAPF-LNS2 fails to find collision-free paths within the runtime limit, it usually returns paths with only a few collisions".
 - **TSP plus conflicts.** CBSS interleaves CBS conflict resolution with multiple-TSP sequencing, handling up to 20 agents and 50 targets in the conference version. This is the nearest published problem to the draft's Steps 1-12. — [Ren, Rathinam, Choset 2023](https://doi.org/10.1109/TRO.2023.3266993) [SR]
 
 ### Inferences
@@ -103,7 +107,7 @@ The simple rule is prioritized planning with velocity tuning on fixed paths, and
 ## What exists on potential games for conflict resolution, and which is closest to GO/WAIT/DETOUR?
 
 ### Takeaway
-Potential games are well used in autonomous driving and interactive robotics, mostly over continuous controls or lane decisions. I found none for aircraft or UAV conflict resolution with discrete repair manoeuvres. None is named "corridor game", and the nearest corridor work is decentralised and reactive.
+Potential games are well used in autonomous driving and interactive robotics, mostly over continuous controls or lane decisions. I found none for aircraft or UAV conflict resolution with discrete repair manoeuvres. (2026-11-09) The nearest is [Picard 2022](https://ifaamas.csc.liv.ac.uk/Proceedings/aamas2022/pdfs/p1065.pdf): UAVs choose discrete manoeuvres per conflict, solved as a DCOP, which is a potential game in Chapman et al.'s sense, although Picard does not call it one. None is named "corridor game", and the nearest corridor work is decentralised and reactive.
 
 ### Cited Findings
 - **Theory.** Potential games were defined by [Monderer, Shapley 1996](https://doi.org/10.1006/game.1996.0044) [META]. In a finite generalised ordinal potential game every improvement path is finite, so a pure Nash equilibrium exists and improving moves find one. — [Wikipedia, "Potential game"](https://en.wikipedia.org/wiki/Potential_game) [FT, secondary]
@@ -113,14 +117,16 @@ Potential games are well used in autonomous driving and interactive robotics, mo
   - Generalized mixed-integer potential game on highways. — [Fabiani, Grammatico 2020](https://doi.org/10.1109/TITS.2019.2901505) [AB]
   - Lexicographic communal games. — [Zanardi et al. 2021](https://doi.org/10.1109/LRA.2021.3068657) [AB]
   - Factorising dynamic games into smaller subgames using the spatio-temporal resources players need. — [Zanardi et al. 2022](https://doi.org/10.1109/iros47612.2022.9981416) [SR]
-- **Interactive robotics.** Potential iLQR and its distributed form; "imagined" potential games with symmetric collision terms. — [Kavuncu et al. 2021](https://doi.org/10.15607/RSS.2021.XVII.084) [SR], [Williams et al. 2023](https://arxiv.org/abs/2303.04842) [FT], [Sun et al. 2023](https://arxiv.org/abs/2310.01614) [AB]
+- **Interactive robotics.** Potential iLQR and its distributed form; "imagined" potential games with symmetric collision terms. — [Kavuncu et al. 2021](https://doi.org/10.15607/RSS.2021.XVII.084) [FT, 2026-11-09], [Williams et al. 2023](https://arxiv.org/abs/2303.04842) [FT], [Sun et al. 2023](https://arxiv.org/abs/2310.01614) [AB]
 - **Corridor-like scenes.**
   - Deadlock in constrained spaces reduced to a "modified N-player Chicken game", with the equilibrium encoded as a control barrier function. The baseline is random perturbation, and the metrics are cost and path deviation. — [Chandra et al., project page](https://amrl.cs.utexas.edu/snupi.html) [FT], [Chandra et al. 2025](https://doi.org/10.1007/s10514-025-10194-8) [META]
   - Taxonomy of doorways, hallways and corridor intersections. — [Chandra, Singh, Luo, Sycara](https://arxiv.org/abs/2508.13459) [FT, sections]
   - SocialMAPF, which uses mechanism design during MAPF conflict resolution in narrow hallways. — [Chandra et al. 2023](https://doi.org/10.1109/lra.2023.3265169) [AB]
   - Yield-or-go as a chicken game is standard in driving surveys. — [Scenario-based game theory survey, arXiv 2509.05777](https://arxiv.org/abs/2509.05777) [SR]
 - **Air traffic games use other concepts.**
-  - Satisficing game theory. — [Archibald et al. 2008](https://doi.org/10.1109/tsmcc.2008.919162) [AB]
+  - Satisficing game theory. — [Archibald et al. 2008](https://doi.org/10.1109/tsmcc.2008.919162) [AB]. (2026-11-09) Applied to UAVs, with strategies "based on flight characteristics of UAVs" and required time of arrival in the utility. — [Li et al. 2018, *IEEE IoT J.* 6(2)](https://doi.org/10.1109/jiot.2018.2885147) [AB]
+  - (2026-11-09) Correlated equilibrium for UAV conflict resolution. — [Tony, Ghose, Chakravarthy 2020, CONCORD](https://doi.org/10.2514/6.2020-0876) [AB]
+  - (2026-11-09) DCOP over discrete manoeuvres (postpone, elevate, skip) for UAVs on 4D contracts. — [Picard 2022](https://ifaamas.csc.liv.ac.uk/Proceedings/aamas2022/pdfs/p1065.pdf) [FT]
   - Sequential bargaining over which aircraft manoeuvres. — [Pritchett, Genton 2018](https://wcl.cs.rpi.edu/pilots/library/papers/collision/game_theory_negotiated_decentralized_conflict_resolution.pdf) [SR, title page opened]
   - A cooperative game with a nucleolus-style solution. — [Symmetry 2022](https://doi.org/10.3390/sym14081517) [SR]
   - A receding-horizon differential Nash scheme for drones. — [Hoogendoorn et al. 2023](https://arxiv.org/abs/2308.01069) [FT]
@@ -133,7 +139,7 @@ Potential games are well used in autonomous driving and interactive robotics, mo
 - Starting from all-GO selects one equilibrium among several. [Zanardi et al. 2023](https://arxiv.org/abs/2210.13064) [FT] describe a "plurality of different equilibria posing the issue of equilibrium selection", and report different runs producing different orders of right of way.
 
 ### Gaps
-- I found no potential-game paper with GO, WAIT and DETOUR-style strategies, and no game with Left / Right / Detour over corridors.
+- I found no potential-game paper with GO, WAIT and DETOUR-style strategies, and no game with Left / Right / Detour over corridors. (2026-11-09) Picard 2022 has the closest strategy set (postpone, elevate, skip), but it is framed as a DCOP, not as a game.
 - A targeted search for potential games in air traffic returned no exact potential formulation. That search is limited, and journals such as JGCD were not directly searchable.
 
 ## Do papers use exposure time as a shared penalty, best-response resolution in time order, or a large collision weight?
@@ -390,7 +396,7 @@ Searches were broad but not exhaustive. The most important negative results are 
 | Ribeiro, Ellerbroek, Hoekstra | 2020 | Review of CR methods | Aerospace 7:79 | 10.3390/aerospace7060079 | SR |
 | Wu, Bhattacharya, Prorok | 2020 | Prioritization by path prospects | ICRA 9809-9815 | 10.1109/icra40945.2020.9196813 | FT |
 | Zanardi et al. | 2021 | Urban Driving Games | RA-L 6:4978-4985 | 10.1109/LRA.2021.3068657 | AB |
-| Kavuncu, Yaraneri, Mehr | 2021 | Potential iLQR | RSS XVII | 10.15607/RSS.2021.XVII.084 | SR |
+| Kavuncu, Yaraneri, Mehr | 2021 | Potential iLQR | RSS XVII | 10.15607/RSS.2021.XVII.084 | FT (2026-11-09) |
 | Li et al. | 2021 | RHCR, lifelong MAPF | AAAI 35:11272-11281 | 10.1609/aaai.v35i13.17344 | FT |
 | Wang et al. | 2021 | Game-theoretic planning, self-driving | IEEE T-RO 37:1313-1325 | 10.1109/TRO.2020.3047521 | META |
 | Zanardi et al. | 2022 | Posetal Games | RA-L 7:1292-1299 | 10.1109/LRA.2021.3135030 | AB |
@@ -398,7 +404,10 @@ Searches were broad but not exhaustive. The most important negative results are 
 | Andreychuk et al. | 2022 | MAPF with continuous time | AIJ 305:103662 | 10.1016/j.artint.2022.103662 | SR |
 | Wen, Liu, Li | 2022 | CL-MAPF | RAS 150:103997 | 10.1016/j.robot.2021.103997 | SR |
 | Kottinger, Almagor, Lahijanian | 2022 | CBS, kinodynamic constraints | IROS 13494-13499 | 10.1109/IROS47612.2022.9982018 | SR |
-| Li et al. | 2022 | MAPF-LNS2 | AAAI 36:10256-10265 | 10.1609/aaai.v36i9.21266 | SR |
+| Li et al. | 2022 | MAPF-LNS2 | AAAI 36:10256-10265 | 10.1609/aaai.v36i9.21266 | FT (2026-11-09) |
+| Picard | 2022 | DCOP trajectory coordination in UTM | AAMAS 2022, 1065-1073 | ifaamas.csc.liv.ac.uk/Proceedings/aamas2022/pdfs/p1065.pdf | FT (2026-11-09) |
+| Li, Du, Yang, Wu, Zhang, Wu | 2018 | Satisficing conflict resolution for UAVs | IEEE IoT J. 6:1866-1878 | 10.1109/jiot.2018.2885147 | AB (2026-11-09) |
+| Tony, Ghose, Chakravarthy | 2020 | CONCORD, correlated equilibrium | AIAA SciTech 2020 | 10.2514/6.2020-0876 | AB (2026-11-09) |
 | Miller, Mitra | 2022 | Differential games, lexicographic preferences | CDC 5751-5756 | 10.1109/cdc51059.2022.9992957 | FT |
 | Williams, Chen, Mehr | 2023 | Distributed Potential iLQR | ICRA | 10.1109/ICRA48891.2023.10161176 | FT |
 | Zanardi et al. | 2023 | How Bad is Selfish Driving? | RA-L 8:2293-2300 | 10.1109/lra.2023.3251845 | FT |
@@ -426,7 +435,7 @@ Searches were broad but not exhaustive. The most important negative results are 
 | Anshelevich et al. | 2008 | Price of stability, network design | SICOMP 38:1602-1623 | 10.1137/070680096 | META |
 
 ### Inferences
-- Before submission, the [SR] and [META] entries that carry weight in the argument should be read in full. Priority order: Zanardi 2021, Fabiani and Grammatico 2020, Kavuncu 2021, MAPF-LNS2, Peng and Akella 2005, Chaimatanan 2014, Sadovsky 2026.
+- Before submission, the [SR] and [META] entries that carry weight in the argument should be read in full. Priority order: Zanardi 2021, Fabiani and Grammatico 2020, Kavuncu 2021, MAPF-LNS2, Peng and Akella 2005, Chaimatanan 2014, Sadovsky 2026. (2026-11-09) Kavuncu 2021 and MAPF-LNS2 are done. Chaimatanan 2014 and Sadovsky 2026 are closed access in OpenAlex.
 - Items worth tracing further, not cited above: [Rosenthal 1973](https://doi.org/10.1007/BF01737559) and [Ui 2000](https://doi.org/10.1006/game.1999.0729) [META], for the wider theory of exact potentials.
 
 ### Gaps

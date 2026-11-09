@@ -2,6 +2,8 @@
 
 Written 2026-11-06. The aim was to disprove the draft's novelty. No paper doing the whole pipeline was found, but **this search was cut short** (see the last section), and a failure to find a paper does not show that it is unpublished.
 
+**Follow-up on 2026-11-09:** the priority list at the end was worked through in [follow_up_2026-11-09.md](follow_up_2026-11-09.md). Statements below that it changed were corrected and are marked "(2026-11-09)".
+
 Evidence labels, used on every paper:
 
 - **[FT]**: I read the relevant passages of the full text.
@@ -10,6 +12,7 @@ Evidence labels, used on every paper:
 - **[SR]**: seen only in a search-result summary. It exists, but its content is second-hand.
 - **[TITLE]**: title and bibliographic data only. Anything about its method is inferred from the title.
 - **[UNVERIFIED]**: from memory, not confirmed in this session.
+- **[REPO]** (added 2026-11-09): read in the authors' public code repository README, not in the paper.
 
 ## Which published papers are closest to the combined pipeline, ranked?
 
@@ -35,6 +38,8 @@ No paper found combines all six parts. The closest overall is Huang & Savkin 201
 | 11 | Nayak & Rathinam 2023, *Sensors*, [DOI](https://doi.org/10.3390/s23146432) | [FT] | MinMax Dubins mTSP; **h = 8 candidate headings per city**; MILP, VNS, learned policy | No obstacles ("Future work can address..."); no conflict handling found |
 | 12 | Cho & Choi 2018, [arXiv](https://arxiv.org/abs/1808.02720) | [ABS] | Heterogeneous Dubins vehicles; memetic algorithm; objective mixes total and longest tour | Remote tasks; abstract names no obstacles or collisions |
 | 13 | Liu, Lu, Xie, Ji, Zheng 2025, [arXiv](https://arxiv.org/abs/2506.02365); listed as [*Drones* 10(2)](https://doi.org/10.3390/drones10020132) | [FT*] | K-means clustering; Dubins distance costs; several UAVs | "obstacles and hazardous areas are currently not taken into account"; collisions assumed away by altitude layering |
+| (2026-11-09) | Kumar & Mukherjee 2026, COMSNETS, [DOI](https://doi.org/10.1109/comsnets67989.2026.11418194) | [ABS] | WSN mobile sinks; **minimises the number of sinks** under a per-sink length limit L; tours avoid obstacles; approximation algorithm with analysis; static and mobile sensors | No kinematics, dwell or conflicts between sinks in the abstract. Not ranked against the others, because only the abstract was read |
+| (2026-11-09) | Xu et al. 2023, *IEEE T-ASE* 21(4), [DOI](https://doi.org/10.1109/tase.2023.3336076); [code](https://github.com/wuuya1/LRGO) | [ABS], [REPO] | Non-holonomic fleet; distributed task assignment; distributed motion planning that handles deadlocks, with ORCA among its planners; dense environments; 50 vehicles and 203 targets | Not data collection; reactive avoidance rather than resolving conflicts on planned timed tours; no budget or fleet minimisation stated |
 
 Further Dubins routing work, less close:
 
@@ -93,7 +98,7 @@ Three of the six pairs are already published, and so is one triple. No paper was
 | Dubins routing + clustering + WSN (triple) | **Exists in substance** | [Fu et al. 2026](https://doi.org/10.1109/tits.2025.3645094) (clustering plus obstacle-avoiding roadmap, not geodesic spectral) |
 | Dubins routing + game deconfliction | Not found | Nearest Dubins work coordinates by timing without a game: [Fu 2026](https://doi.org/10.1109/tits.2025.3645094), [Wu 2025](https://doi.org/10.1038/s41598-025-09753-x). Dubins game hits are pursuit-evasion ([Ruiz](https://arxiv.org/abs/2406.08637) [TITLE], [Ren 2025](https://doi.org/10.1007/978-981-96-0789-1_2)) |
 | Clustering + game deconfliction | Not found | Nothing surfaced |
-| Game deconfliction + WSN sinks | Not found | [Raj et al. 2020](https://doi.org/10.1007/s11276-020-02254-x) [TITLE] uses game theory with ACO for a mobile sink, but I could not read what the game decides, so **this needs checking**. A Europe PMC full-text hit, a [topology-control paper](https://doi.org/10.1016/j.mex.2023.102423) [TITLE], looks irrelevant from its title |
+| Game deconfliction + WSN sinks | Not found | [Raj et al. 2020](https://doi.org/10.1007/s11276-020-02254-x) [SR] uses game theory with ACO for a mobile sink. (2026-11-09) The game selects rendezvous points and ACO selects the route, so it does not resolve conflicts between sinks. A Europe PMC full-text hit, a [topology-control paper](https://doi.org/10.1016/j.mex.2023.102423) [TITLE], looks irrelevant from its title |
 | Any triple with the game | Not found | Nothing surfaced |
 | All four, or the full pipeline | Not found | Nothing surfaced |
 
@@ -110,7 +115,7 @@ Three of the six pairs are already published, and so is one triple. No paper was
 - Fleet-size-first objectives are, from memory, standard in vehicle routing with time windows **[UNVERIFIED]**, so the lexicographic objective is unlikely to count as a contribution.
 
 ### Gaps
-- The role of the game in Raj et al. 2020 is unknown, and the publisher page was not reachable.
+- (2026-11-09) Raj et al. 2020 is resolved only at search-summary level: the publisher page still redirects to a login.
 
 ## What did the direct phrase searches return?
 
@@ -162,7 +167,7 @@ No survey seen names this combination. They state general gaps (integration, kin
 - A gap sentence in the paper can honestly say that surveys ask for integration of allocation and path planning, and that Dubins routing papers defer obstacles and inter-vehicle conflicts to future work. It should not say that surveys identify a Dubins + spectral + game gap.
 
 ### Gaps
-- No dedicated survey of Dubins routing was found. The query for one was refused by the search limit. From memory, Macharet & Campos's routing survey in *Robotica* (2018) is a candidate **[UNVERIFIED]**.
+- (2026-11-09) Macharet & Campos, ["A survey on routing problems and robotic systems", *Robotica* 2018](https://doi.org/10.1017/s0263574718000735), exists [TITLE]. A newer [seventy-year review of Dubins path planning (*Industrial Robot* 2026)](https://doi.org/10.1108/ir-07-2025-0265) [ABS] says that "obstacle constraints and real-time responsiveness remain active challenges". Neither was read in full.
 
 ## Could a very recent paper (2023 to 2026) scoop the draft?
 
@@ -236,10 +241,10 @@ What the draft should show to be credible. This is my judgement, not a venue rul
 | GA plus discrete-heading optimisation as a contribution | **Fails** | [Edison & Shima 2011](https://cris.iucc.ac.il/en/publications/integrated-task-assignment-and-path-optimization-for-cooperating-/), [Nayak 2023](https://doi.org/10.3390/s23146432) |
 | Exact potential game, best response reaches a pure Nash equilibrium, as a result | **Fails as a result** | Shown for vehicles in [Liu 2022](https://arxiv.org/abs/2201.06157). From memory, the general theorem is Monderer & Shapley 1996 **[UNVERIFIED]** |
 | Lexicographic (K, T_max, L_total) as a contribution | **Weak** | No exact match found, but it is a modelling choice, not a method |
-| Repair by re-optimising the sinks involved | **Weak** | Simple forms in [Cai 2017](https://doi.org/10.3390/s17071607), [Li 2024](https://doi.org/10.3390/s24196345) |
+| Repair by re-optimising the sinks involved | **Weak** | Simple forms in [Cai 2017](https://doi.org/10.3390/s17071607), [Li 2024](https://doi.org/10.3390/s24196345). (2026-11-09) The general form is MAPF-LNS2, confirmed in [full text](https://ojs.aaai.org/index.php/AAAI/article/view/21266); cite it |
 | Radially unimodal seed plus pi * R per-peak surrogate | **Possible, narrow** | No hit for the phrase, but likely neighbours exist (pyramidal tours **[UNVERIFIED]**). Needs ablation |
-| Budget-triggered recursive spectral bisection with radius-tied affinity, as fleet sizing | **Possible** | Not found. At risk from [Wang 2026](https://doi.org/10.1109/irce70780.2026.11739077) full text. Travel-time costs may already capture turning |
-| Discrete GO/WAIT/DETOUR potential game on timed Dubins tours, with route repair | **Possible, best distinct claim** | Not found in any index tried. See the objections below |
+| Budget-triggered recursive spectral bisection with radius-tied affinity, as fleet sizing | **Possible, as a method only** | Not found. At risk from [Wang 2026](https://doi.org/10.1109/irce70780.2026.11739077) full text. Travel-time costs may already capture turning. (2026-11-09) Minimising the number of sinks under a per-sink length limit with obstacles is itself published in [Kumar & Mukherjee 2026](https://doi.org/10.1109/comsnets67989.2026.11418194) [ABS], with an approximation guarantee, so the bisection needs a comparison with it |
+| Discrete GO/WAIT/DETOUR potential game on timed Dubins tours, with route repair | **Possible, best distinct claim, but narrower (2026-11-09)** | Not found in any index tried. But [Picard 2022](https://ifaamas.csc.liv.ac.uk/Proceedings/aamas2022/pdfs/p1065.pdf) [FT] already has discrete per-conflict actions (postpone, elevate, skip) on pre-planned UAV trajectories, with conflicts weighted first. What remains is the Dubins setting, exposure time as an exact potential, and the coupling to routing. See the objections below |
 | The whole integrated pipeline, "to the best of our knowledge" | **Likely survives as worded** | Not found, but integration alone is weak novelty. Support it with a feature table against ranks 1-5 |
 
 **Objections a reviewer can raise, with evidence:**
@@ -336,12 +341,12 @@ The search was cut short, and its "not found" results are moderate evidence at b
 
 ### Inferences
 - Absence from this search does not show that a paper is unpublished. The "not found" verdicts could be overturned by a Google Scholar pass, IEEE Xplore full-text search, or citation trails.
-- Before relying on these verdicts, in priority order:
-  1. Read Wang et al. 2026 in full.
-  2. Read Fu et al. 2026 in full, and list its 7 citing papers.
-  3. List the 57 papers citing Huang & Savkin 2017.
-  4. Check what the game does in Raj et al. 2020.
-  5. Run the refused queries.
+- Before relying on these verdicts, in priority order. Status on 2026-11-09 is in brackets; details are in [follow_up_2026-11-09.md](follow_up_2026-11-09.md):
+  1. Read Wang et al. 2026 in full. (Not done. It is CC BY on IEEE Xplore, which refuses automated downloads.)
+  2. Read Fu et al. 2026 in full, and list its 7 citing papers. (Full text closed. OpenAlex lists 11 citing works; none is close.)
+  3. List the 57 papers citing Huang & Savkin 2017. (OpenAlex lists 62; all screened. Kumar & Mukherjee 2026 is the one close paper.)
+  4. Check what the game does in Raj et al. 2020. (Done at [SR] level: it picks rendezvous points.)
+  5. Run the refused queries. (Done. New close papers: Picard 2022 and Xu et al. 2023.)
 
 ### Gaps
 - Not searched directly at all: Google Scholar, IEEE Xplore, ScienceDirect, SpringerLink, ACM Digital Library. Chinese-language literature, theses and patents were not covered, apart from one [US patent on joint multi-UAV assignment and path planning](https://image-ppubs.uspto.gov/dirsearch-public/print/downloadPdf/10140875) [SR] whose page returned 403.

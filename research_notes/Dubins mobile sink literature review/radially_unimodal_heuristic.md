@@ -1,6 +1,8 @@
 # Radially unimodal tour heuristic: novelty assessment of Section 0.8
 
-Searched on 2026-11-06. Evidence tags after each citation say how far I read the source: **[text]** = I read the relevant passage in the document; **[abstract]** = abstract or catalogue record only; **[snippet]** = seen only in a search-result summary, document not opened; **[meta]** = existence and bibliographic data confirmed, anything about content is inferred from the title. Own calculations are labelled as such, sit under Inferences, and are not published results. Scripts: `/tmp/claude-1000/-workspaces-Dubins-TSP/f3d37a5d-dcb4-42fd-8e49-536c9c4b50c5/scratchpad/exp/` (temporary location; ask if they should be kept).
+Searched on 2026-11-06. Evidence tags after each citation say how far I read the source: **[text]** = I read the relevant passage in the document; **[abstract]** = abstract or catalogue record only; **[snippet]** = seen only in a search-result summary, document not opened; **[meta]** = existence and bibliographic data confirmed, anything about content is inferred from the title. Own calculations are labelled as such, sit under Inferences, and are not published results. Scripts: `/tmp/claude-1000/-workspaces-Dubins-TSP/f3d37a5d-dcb4-42fd-8e49-536c9c4b50c5/scratchpad/exp/` (temporary location; ask if they should be kept). (2026-11-09) That folder no longer exists, so the own calculations below cannot be rerun from it.
+
+**Follow-up on 2026-11-09:** see [follow_up_2026-11-09.md](follow_up_2026-11-09.md). The searches that did not run were run, and three of the four depot hits were checked. Statements this changed are marked "(2026-11-09)".
 
 ## Are the heuristic, its fitness and its seeding new, and what do they most closely resemble?
 
@@ -107,7 +109,7 @@ Depot-centred geometry is old, but what is classical is angular (sweep and petal
 
 ### Gaps
 - A combined search for UAV or vehicle "monotone radial" routes returned nothing relevant, and "cone" and "spiral" searches returned only loosely related work on view cones and data mules. I did not read any of those in full.
-- OpenAlex lists four depot-related hits for "pyramidal tour": [Three essays on sequencing and routing problems (MIT, 2005)](https://dspace.mit.edu/handle/1721.1/17517), [Exact and Heuristic Algorithms for Routing AGV on Path with Precedence Constraints (2016)](https://doi.org/10.1155/2016/5040513), [2VRP (arXiv:1802.08042, 2018)](https://arxiv.org/abs/1802.08042) and [To walk or not to walk (2024)](https://doi.org/10.1016/j.tre.2024.103696). I read only the 2VRP abstract, which does not mention pyramidal tours. **Someone should check these four before the novelty statement is finalised.** The first link is my guess at the matching record, inferred from a later search; treat as unconfirmed.
+- OpenAlex lists four depot-related hits for "pyramidal tour": [Three essays on sequencing and routing problems (MIT, 2005)](https://dspace.mit.edu/handle/1721.1/17517), [Exact and Heuristic Algorithms for Routing AGV on Path with Precedence Constraints (2016)](https://doi.org/10.1155/2016/5040513), [2VRP (arXiv:1802.08042, 2018)](https://arxiv.org/abs/1802.08042) and [To walk or not to walk (2024)](https://doi.org/10.1016/j.tre.2024.103696). I read only the 2VRP abstract, which does not mention pyramidal tours. **Someone should check these four before the novelty statement is finalised.** The first link is my guess at the matching record, inferred from a later search; treat as unconfirmed. (2026-11-09) Three are checked, and none orders stops by distance from the depot. 2VRP [text] uses pyramidal tours under Kalmanson matrices, ordered by convex position. The AGV paper [abstract] orders along a guide wire. "To walk or not to walk" [text, keyword scan] mentions pyramidal tours only in its references (Oda & Ota 2001, "pyramidal tours with restricted jump-backs"). The MIT thesis is still unchecked.
 - From memory only, and not confirmed: that Daganzo's zones are elongated towards the depot with stops served half on the way out and half on the way back. If so, this would be close prior work. The searches confirmed only the "strip" strategy.
 
 ## Are there GA or evolutionary methods for the Dubins TSP, how do they treat fitness, and does m(π)·π·R have a basis?
@@ -157,7 +159,7 @@ Basis for the term, own analysis:
 ### Gaps
 - Le Ny et al.'s full texts were not retrieved; the Ω(n) statement rests on the abstract. A Scispace copy returned no text.
 - I could not read how Macharet et al. and Zhang et al. compute fitness in detail beyond their abstracts.
-- The search for a GA fitness with a turn or reversal penalty did not fully run (see last section). One earlier combined search found no such paper, but that is weak evidence.
+- The search for a GA fitness with a turn or reversal penalty did not fully run (see last section). One earlier combined search found no such paper, but that is weak evidence. (2026-11-09) It has now run, on OpenAlex and as a web search, and again found none.
 
 ## What is known about structured GA seeding, does it reduce iterations, and how does a GA compare with LKH or the alternating algorithm?
 
@@ -180,7 +182,7 @@ Seeding is an old, studied idea. The literature supports better mean quality and
 - REAL_DUBINS_PLACEHOLDER
 
 ### Gaps
-- I found no GA seeded from pyramidal or bitonic tours. The arXiv queries for pyramidal + genetic and bitonic + genetic returned 0, but the dedicated web search could not run (see last section).
+- I found no GA seeded from pyramidal or bitonic tours. The arXiv queries for pyramidal + genetic and bitonic + genetic returned 0, but the dedicated web search could not run (see last section). (2026-11-09) OpenAlex for "pyramidal tour" with genetic, evolutionary, memetic or heuristic returned 2 hits, neither a seeded GA.
 - [Paul et al. 2015, Applied Soft Computing], named in the suggested sources area of my own memory, could not be verified, so it is not cited. A similarly titled [ResearchGate record](https://www.researchgate.net/publication/273382985_Performance_Assessment_over_Heuristic_Population_Seeding_Techniques_of_Genetic_Algorithm_Benchmark_Analysis_on_Travelling_Salesman_Problems) exists, not opened.
 - No study found that compares LKH with a plain GA specifically on a Dubins instance with a surrogate fitness.
 
@@ -242,7 +244,7 @@ Searched and not found:
 - The near-absence of the phrase is explained by the structure having an established name. A novelty search on the draft's own term would not be expected to find the prior work, which is why the phrase's absence is not evidence of novelty.
 
 ### Gaps
-- **Searches that did not run.** The session's web search limit was reached. Not run: pyramidal tours + genetic, memetic or evolutionary; GA seeding by distance from the depot; turn or direction-reversal penalty fitness. The user can ask for a follow-up to run them.
+- **Searches that did not run.** The session's web search limit was reached. Not run: pyramidal tours + genetic, memetic or evolutionary; GA seeding by distance from the depot; turn or direction-reversal penalty fitness. The user can ask for a follow-up to run them. (2026-11-09) All three were run on OpenAlex, and one as a web search. No relevant paper was found. The web search found [Hansen & La Cour-Harbo 2016](https://doi.org/10.1109/ECC.2016.7810624) [text]: a GA over order, heading and speed whose fitness is travel time on Dubins curves. It says the two-step Euclidean approach "works well" when waypoints are far apart compared with the turning radius, "but when the waypoints are closer, the kinematics of the aircraft ruins the plan".
 - Semantic Scholar returned HTTP 429 on every attempt, and Google Scholar, IEEE Xplore, Scopus and Web of Science were not queried. Queries cover titles and abstracts, not paywalled full text.
 - arXiv recall looks poor: `dubins AND genetic AND traveling` returned 0 even though related work exists, so its zeros are weak evidence.
 - Not opened, only cited through others or by catalogue record: Burkard et al. body, Gilmore et al., Klyaus, Sarvanov and Doroshko, Aizenshtat and Kravchuk, CLRS, Grefenstette, Le Ny et al. full texts, Babel full text, Nagata and Kobayashi full text. Russian-language 1970s-80s work was not read.

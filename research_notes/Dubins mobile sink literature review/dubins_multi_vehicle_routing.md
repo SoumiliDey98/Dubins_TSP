@@ -2,6 +2,8 @@
 
 Compiled 2026-11-06. The draft's formulation, for reference: several Dubins vehicles leave one base, every static sensor is served exactly once with a stationary dwell tau_i, static disjoint polygonal obstacles need clearance, T_k = L_k/v + sum(tau_i) <= B per vehicle, pairwise separation >= d_safe at all t, objective lexmin (K, T_max, L_total), headings chosen from a discrete set by dynamic programming.
 
+**Follow-up on 2026-11-09:** see [follow_up_2026-11-09.md](follow_up_2026-11-09.md). It adds a 2026 Dubins survey and Xu et al. 2023, and lists the papers citing Nayak & Rathinam 2023 and Gottlieb 2018 (Q8). Statements it changed are marked "(2026-11-09)".
+
 **Evidence tags used on every paper.** These say what was actually read, because publisher sites mostly refused access.
 
 - **[T]** I read the relevant part of the paper's text (open PDF or HTML). This is usually sections plus keyword checks, not a cover-to-cover reading.
@@ -46,6 +48,7 @@ The single-vehicle problem is mature. It is NP-hard, and no general exact solver
 - Improved Alternating Algorithm plus C-GRASP, reporting 28 % average length reduction against the classic technique. [A] — [Macharet, Neto, da Camara Neto & Campos 2011, ICRA](https://doi.org/10.1109/icra.2011.5980239)
 - Orientation assignment heuristic. [R] — [Macharet & Campos 2014, IBERAMIA](https://doi.org/10.1007/978-3-319-12027-0_37)
 - Routing survey with Dubins keywords. [A] — [Macharet & Campos 2018, Robotica](https://doi.org/10.1017/s0263574718000735)
+- (2026-11-09) A dedicated Dubins survey: "Dubins path planning has evolved from simple analytical models to complex multirobot and dynamic scenarios. While exact solutions exist for basic tasks, the scalability, obstacle constraints and real-time responsiveness remain active challenges." [A] — [Zhou et al. 2026, "A seventy-year review of Dubins robot path planning", Industrial Robot 53(5):897-919](https://doi.org/10.1108/ir-07-2025-0265)
 - GA. [R] — [Yu & Hung 2012, ISIE](https://doi.org/10.1109/isie.2012.6237270)
 - DTSP with neighbourhoods by simple local iteration. [A] — [Váňa & Faigl 2015, IROS](https://doi.org/10.1109/iros.2015.7353945)
 - Learning-based DTSPN. [A] — [Shin et al. 2024, arXiv 2404.16721](https://arxiv.org/abs/2404.16721)
@@ -106,6 +109,7 @@ A small literature exists, with fixed fleets and min-sum or min-max objectives, 
 - The closest published combination on routing plus collisions plus durations is CBSS with durations (Zhang et al.), but without curvature limits or budget, and with fixed agents. The closest on Dubins plus obstacles plus several vehicles is Fu et al. 2023, without a shown separation guarantee, budget or fleet-size objective.
 - "First to combine obstacles and inter-vehicle separation for multiple Dubins vehicles" is **not a safe claim**: applied UAV papers (Yu 2026, the ResearchGate paper) appear to touch both. The defensible claim is about the full conjunction, stated in Q7.
 - Zhu 2022 and Nayak 2023 show that "no prior work" sentences have been wrong in this area, so a novelty sentence should state the searched scope.
+- (2026-11-09) A non-holonomic fleet that visits targets, with distributed task assignment and distributed collision avoidance that handles deadlocks, is published: [Xu, Kang, Yang, Wu, Liu, Cao, Liu 2023, IEEE T-ASE 21(4):7027-7039](https://doi.org/10.1109/tase.2023.3336076) [A], with [Python code](https://github.com/wuuya1/LRGO) naming ORCA among its planners. It avoids collisions reactively, not by resolving conflicts on planned timed tours, and has no budget or fleet minimisation in the abstract. It is a different paper from Xu et al. 2026 above.
 
 ### Gaps
 - I could not read Fu 2023, Yu 2026, Xu 2026 or the ResearchGate paper in full. Someone with library access should check these four first, along with Ernest & Cohen 2012.
@@ -324,4 +328,4 @@ Limits on all of the above:
 
 ### Gaps
 - Papers to obtain before any novelty statement is finalised, in order: Fu 2023; Yu 2026; the ResearchGate GA paper; the CTU thesis; Ernest & Cohen 2012; Avellar 2015; Gottlieb 2018; Babel 2017; Arkin et al. 2006; Enright & Frazzoli 2006.
-- Run the Q8 queries on Google Scholar and Scopus, adding the synonyms above, and scan papers citing Nayak & Rathinam 2023, Fu 2023 and Gottlieb 2018 for work from 2024-2026. Citation chaining was not done here and is likely the quickest way to find a close match if one exists.
+- Run the Q8 queries on Google Scholar and Scopus, adding the synonyms above, and scan papers citing Nayak & Rathinam 2023, Fu 2023 and Gottlieb 2018 for work from 2024-2026. Citation chaining was not done here and is likely the quickest way to find a close match if one exists. (2026-11-09) Done for Nayak & Rathinam (12 citing works in OpenAlex) and Gottlieb (11): the new relevant ones are Xu et al. 2023, the 2026 Dubins survey, and two learned-routing papers. Fu 2023 was not chained.

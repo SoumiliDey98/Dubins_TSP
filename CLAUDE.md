@@ -13,6 +13,7 @@ Dubins TSP for wireless sensor networks: several mobile sinks, modelled as Dubin
 - `Dubins_TSP.pdf`: the paper (Soumili Dey, May 2026) and the specification for the code. Sections 0.10.1 and 0.10.2, on inserted pages 7a and 7b, give the theory of `conflict_game.py` and `simple_resolver.py`. Section 0.13 is currently marked up: blue lines are proposed additions, and red shaded lines are for the user to remove (open item 1). The unmarked version is in git at commit `374a424`.
 - `Dubins_TSP_New_Implementation_claude/`: the active implementation. Everything below refers to it unless stated. Its `README.md` has the file-to-paper mapping, the choices made where the paper is silent, what is guaranteed versus only measured, and all result tables.
 - `theory_claude/`: theory PDFs for the conflict game and the simple resolver, plus `corridor_game_gt.py`, which `conflict_game.py` was adapted from.
+- `research_notes/Dubins mobile sink literature review/`: the literature review of the draft's novelty. There are five topic notes from 2026-11-06 (closest prior art, conflict-resolution games, Dubins multi-vehicle routing, mobile-sink WSNs, the radially unimodal heuristic) and `follow_up_2026-11-09.md`. Every citation carries a tag saying how far it was read. Continue the review from the follow-up note's last two sections.
 - `Dubins_TSP_Antigravity/`: a separate implementation with its own README and requirements. The active implementation does not use it, except that `test_dubins_matches_original_and_ends_at_target` imports its `dubins.py`, the original Dubins code, as a read-only reference. Do not move or change that file without updating the test.
 
 ## Commands
@@ -49,6 +50,7 @@ python -m pytest tests/run_tests.py -k "not end_to_end and not same_seed"   # sk
 - There is no `.gitignore`: the user had it deleted. `__pycache__/` and GIFs are therefore not ignored, so stage files by name instead of using `git add -A`, and run Python with `PYTHONDONTWRITEBYTECODE=1` so that `__pycache__/` is not created.
 - Reading PDFs: `poppler-utils` lets the Read tool show PDF pages as images, which is the reliable way to read equations; extracted text garbles them. It was installed in this codespace on 2026-11-05, and a new codespace needs `sudo apt-get install -y poppler-utils`. Section 0.13 is on PDF pages 12-17.
 - A codespace restart wipes `/tmp`, including the session scratchpad, so a long measurement kept only there can be lost. Write results per seed so a run can resume, and copy what must survive before leaving a run idle.
+- Literature searches: OpenAlex (`api.openalex.org`) works without a key, but it shares a small daily budget per network address and returns 429 when hit quickly, so pause between calls. The arXiv API needs `https://export.arxiv.org`. IEEE Xplore refuses automated downloads, even of open-access papers, and the auto-mode classifier blocks retries with browser headers, so ask the user to download those. On 2026-11-09 the ETH Research Collection returned 429 and the TU Delft repository refused connections.
 - PDF viewer in VS Code: `analytic-signal.preview-pdf`, installed with `~/.vscode-remote/bin/*/bin/remote-cli/code --install-extension analytic-signal.preview-pdf`. The plain `code` command does not work from the agent shell, and `tomoki1207.pdf` refuses to install on a Codespace. A new codespace needs this again.
 
 ## Architecture
@@ -157,10 +159,23 @@ Only Section 0.13 was compared with the code line by line. Where the code is kno
 7. **Seed 22 breaks eq. 19 in the plan.** Sink 13 passes 1.41 m from an obstacle against `r_safe` = 2 m, before any resolver runs. `planner.py` prints the value without flagging it, and `problems` stays empty. The cause has not been investigated.
 8. **Decision for the user: limit the game's look-ahead?** `conflict_game.exposure` counts risk to the end of the mission. Limiting it to the next 10 s (20 frames), patched in memory, gave 27 of 30 clean maps and 3.0 s of risk after repair, against 22 and 6.0 s. It is not in the code and has not been through the tests. It would change the results in the README's tables.
 9. **Decision for the user: fix `simple_resolver.py` if it stays as the paper's baseline?** Its all-or-nothing stop and its stricter five-look test near the base make it collapse just above `d_safe` = 3 m. With both fixed, patched in memory, it leaves 31.0 s against 103.5 s, resolver alone. Not in the code.
+10. **Literature review: five papers unread, three claims to narrow, one modelling decision.**
+    - Unread: Wang 2026 (CC BY, but IEEE Xplore refuses automated downloads), Zanardi 2021 and Fabiani & Grammatico 2020 (green open access, but their repositories refused this network), and Kumar & Mukherjee 2026 and Fu 2026 (closed). `follow_up_2026-11-09.md` gives links. If the user adds PDFs to the notes folder, they can be read.
+    - Claims: Kumar & Mukherjee 2026 already minimises the number of sinks under a per-sink length limit with obstacles. Picard 2022 already resolves conflicts on pre-planned UAV trajectories with discrete per-conflict manoeuvres. The repair step is the MAPF-LNS2 loop.
+    - Decision for the user, raised in `closest_prior_art.md`: Section 0.1 says sinks move forward at constant speed, yet WAIT and the dwell at sensors stop them. Every precedent found that resolves conflicts by stopping uses vehicles that can stop or hover. No code or PDF was changed.
 
 ## Work log
 
 Newest first.
+
+### 2026-11-09
+
+- **Continued the literature review**, at the user's request, from the follow-up list in `closest_prior_art.md`. The results are in `research_notes/Dubins mobile sink literature review/follow_up_2026-11-09.md`. The five earlier notes were corrected in place, with each change marked "(2026-11-09)".
+  - Citation trails, all screened in OpenAlex: Huang & Savkin (62 citing works), Fu 2026 (11), Gottlieb 2018 (11), Nayak & Rathinam 2023 (12), Wichmann & Korkmaz 2015 (51), Kumar & Mukherjee 2023 (4). The queries refused on 2026-11-06 were run.
+  - New close papers: Kumar & Mukherjee 2026 (fewest sinks under a length limit, with obstacles, at abstract level); Picard 2022, AAMAS (postpone / elevate / skip per conflict on pre-planned UAV trajectories, in full text); Xu et al. 2023, T-ASE (non-holonomic fleet with task assignment and reactive collision avoidance, Python code public); and a 2026 Dubins survey.
+  - Now read in full: MAPF-LNS2, Potential iLQR, Hansen & La Cour-Harbo 2016 (a GA with fitness from Dubins times). Raj et al. 2020's game picks rendezvous points, so it is not a deconfliction precedent.
+  - The pipeline as a whole was still not found in any paper. Open item 10 added. No code, README or PDF was changed.
+- **Commit status.** Not committed.
 
 ### 2026-11-06
 
@@ -168,7 +183,8 @@ Newest first.
 - **Saved the report as a PDF**, at the user's request: `Dubins_TSP_New_Implementation_claude/output/compare_resolvers.pdf` (A4, 12 pages, static copy of the online report; all three incidents shown, tables expanded, Figure 7 on seed 1). It was printed with a temporary headless browser in the scratchpad, so `planner.py` and `plot.py` do not produce it. While checking it, Figure 6's distance charts were found to plot whole frames only, which hid the true closest approach between frames; this was fixed in both the PDF and the online report.
 - **A codespace restart lost the first run.** It wiped `/tmp`, including the scratchpad, while the session was idle partway through the work. The main run was repeated and every total measured twice matched. The stress totals at `d_safe` 2, 5, 6 and 8 m, the B sweep, and the give-up and leftover counts are kept from the first run.
 - **Added the theory of both resolvers to `Dubins_TSP.pdf`**, at the user's request, as Sections 0.10.1 and 0.10.2 on inserted pages 7a and 7b (15 to 17 PDF pages). Formulas were checked against the code. The file is an incremental update: the old PDF's bytes are unchanged at the start of the new file, all 15 original pages are pixel-identical and have the same text, and the 11 annotations are kept. Downloading a LaTeX compiler was blocked by the permission system, so the pages were typeset with matplotlib's Computer Modern fonts and inserted by a stdlib script; both scripts are in the session scratchpad only. Extracted text of the new formulas comes out garbled, because of that font encoding; they display correctly.
-- **Commit status.** The README, this file, `Dubins_TSP.pdf` and `output/compare_resolvers.pdf` were not committed. The report PDF is a new untracked file.
+- **Literature review of the draft's novelty.** Five notes in `research_notes/Dubins mobile sink literature review/`. It was cut short by the web-search limit and an exhausted OpenAlex allowance, and continued on 2026-11-09. This entry was added on 2026-11-09, because the review had not been logged here.
+- **Commit status.** The README, this file, `Dubins_TSP.pdf` and `output/compare_resolvers.pdf` were not committed. The report PDF is a new untracked file. All of these, and the literature notes, were later committed as `d93954f` and `a4c709a`.
 
 ### 2026-11-05
 
