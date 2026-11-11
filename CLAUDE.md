@@ -12,7 +12,7 @@ Dubins TSP for wireless sensor networks: several mobile sinks, modelled as Dubin
 
 - `Dubins_TSP.pdf`: the paper (Soumili Dey, May 2026) and the specification for the code. Sections 0.10.1 and 0.10.2, on inserted pages 7a and 7b, give the theory of `conflict_game.py` and `simple_resolver.py`. Section 0.13 is currently marked up: blue lines are proposed additions, and red shaded lines are for the user to remove (open item 1). The unmarked version is in git at commit `374a424`.
 - `Dubins_TSP_New_Implementation_claude/`: the active implementation. Everything below refers to it unless stated. Its `README.md` has the file-to-paper mapping, the choices made where the paper is silent, what is guaranteed versus only measured, and all result tables.
-- `theory_claude/`: theory PDFs for the conflict game and the simple resolver, plus `corridor_game_gt.py`, which `conflict_game.py` was adapted from.
+- `theory_claude/`: theory PDFs for the conflict game and the simple resolver, plus `corridor_game_gt.py`, which `conflict_game.py` was adapted from. `Dubins_math.pdf` states every formula of `dubins_path.py` in the notation and LaTeX style of Section 0.13; its source, figure script and check script are in `Dubins_math_src/`. Change it whenever `dubins_path.py` changes.
 - `research_notes/Dubins mobile sink literature review/`: the literature review of the draft's novelty. There are five topic notes from 2026-11-06 (closest prior art, conflict-resolution games, Dubins multi-vehicle routing, mobile-sink WSNs, the radially unimodal heuristic) and `follow_up_2026-11-09.md`. Every citation carries a tag saying how far it was read. Continue the review from the follow-up note's last two sections.
 - `Dubins_TSP_Antigravity/`: a separate implementation with its own README and requirements. The active implementation does not use it, except that `test_dubins_matches_original_and_ends_at_target` imports its `dubins.py`, the original Dubins code, as a read-only reference. Do not move or change that file without updating the test.
 
@@ -48,6 +48,7 @@ python -m pytest tests/run_tests.py -k "not end_to_end and not same_seed"   # sk
 - New `test_*` functions in `run_tests.py` are picked up automatically.
 - `output/seed1.png`, `seed1_simple.png`, `seed2.png`, `seed3.png` and `seed3_simple.png` are tracked in git, so plotting those runs dirties the tree. Use `--no-plot` for checks.
 - There is no `.gitignore`: the user had it deleted. `__pycache__/` and GIFs are therefore not ignored, so stage files by name instead of using `git add -A`, and run Python with `PYTHONDONTWRITEBYTECODE=1` so that `__pycache__/` is not created.
+- Building `theory_claude/Dubins_math.pdf`: from `theory_claude/Dubins_math_src/`, run `python make_figures.py`, then `pdflatex Dubins_math.tex` twice, then move `Dubins_math.pdf` up one folder and delete the `.aux`, `.log` and `.out` files. `python check_formulas.py` reproduces the agreement with the code that the text quotes. TeX Live and `cm-super-minimal` (needed by matplotlib's LaTeX text) were installed from apt on 2026-11-11. A new codespace needs `sudo apt-get install -y --no-install-recommends texlive-latex-base texlive-latex-recommended texlive-fonts-recommended texlive-latex-extra cm-super-minimal`.
 - Reading PDFs: `poppler-utils` lets the Read tool show PDF pages as images, which is the reliable way to read equations; extracted text garbles them. It was installed in this codespace on 2026-11-05, and a new codespace needs `sudo apt-get install -y poppler-utils`. Section 0.13 is on PDF pages 12-17.
 - A codespace restart wipes `/tmp`, including the session scratchpad, so a long measurement kept only there can be lost. Write results per seed so a run can resume, and copy what must survive before leaving a run idle.
 - Literature searches: OpenAlex (`api.openalex.org`) works without a key, but it shares a small daily budget per network address and returns 429 when hit quickly, so pause between calls. The arXiv API needs `https://export.arxiv.org`. IEEE Xplore refuses automated downloads, even of open-access papers, and the auto-mode classifier blocks retries with browser headers, so ask the user to download those. On 2026-11-09 the ETH Research Collection returned 429 and the TU Delft repository refused connections.
@@ -167,6 +168,14 @@ Only Section 0.13 was compared with the code line by line. Where the code is kno
 ## Work log
 
 Newest first.
+
+### 2026-11-11
+
+- **Wrote `theory_claude/Dubins_math.pdf`**, at the user's request: every formula that `dubins_path.py` follows, in the notation and LaTeX style of Section 0.13 (letter paper, 10 pt Computer Modern, 9 pages). It has 38 numbered equations, 3 figures drawn by `dubins_path.py` itself, and 4 tables (symbols with their code names, when each turn type exists, numerical tolerances, and Section 0.13 against the code). The source is in `theory_claude/Dubins_math_src/`.
+- **Checked the formulas against the code.** On 20000 random pose pairs (R = 5 m; 74236 CSC and 18450 CCC paths), every closed form in the document agrees with the code within 1e-13 m. That includes `psi_D = psi_L + sigma_1 asin(2R / S_tan)`, the cut-in point found forward from the cut-out point against Section 0.13's backward rotation, the CCC centre and cut points, and `S_3 = R(pi + 2 theta)`.
+- **One edge case.** When the two outer circles of a CCC path coincide (`S_tan = 0`), the code gives `S_3 = 0`, not the `2 pi R` of A15's `S_3 = R(pi + 2 theta)`. The path is still valid, and LSL or RSR is shorter there. The document states this. No code or PDF was changed.
+- **Installed TeX Live** from apt. On 2026-11-06, downloading a compiler had been blocked; apt was allowed.
+- **Commit status.** Not committed.
 
 ### 2026-11-09
 
