@@ -1,0 +1,384 @@
+% geodesic_math.tex: the formulas of Dubins_TSP_New_Implementation_claude/geodesic.py,
+% in the notation and style of Section 0.13 of Dubins_TSP.pdf.
+%
+% Build from this folder (needs the figures from make_figures.py):
+%   python make_figures.py
+%   python check_formulas.py      # the checks quoted in the text (about 3 minutes)
+%   pdflatex geodesic_math.tex && pdflatex geodesic_math.tex
+%   mv geodesic_math.pdf ..
+\documentclass[10pt]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\rplan}{r_{\mathrm{plan}}}
+\newcommand{\rsafe}{r_{\mathrm{safe}}}
+\newcommand{\rterm}{r_{\mathrm{term}}}
+\newcommand{\dgeo}{d_{\mathrm{geo}}}
+\newcommand{\pred}{\mathrm{pred}}
+\newcommand{\R}{\mathbb{R}}
+
+\begin{document}
+
+\begin{center}
+  {\LARGE Geodesic Distances: the Mathematics of \code{geodesic.py}}\\[1.2em]
+  {\large November 2026}
+\end{center}
+\vspace{1em}
+
+This note states every formula that \code{geodesic.py} (in \code{Dubins\_TSP\_New\_Implementation\_claude/}) computes,
+in the notation of \code{Dubins\_TSP.pdf}. The file gives the geodesic distance of eq.~(9) of the paper, the matrix
+$D_{\mathrm{geo}}$ of Step~1 of Section~0.9, and the obstacle-free paths that Step~2 of Section~0.11 builds on. Beside each
+symbol is the name it has in the code, and each section names the functions it describes. The statements about the
+inflated polygons were checked on 3\,000 random obstacles made by \code{scenario.py}, and those about the distances on
+the maps of seeds 1--10; the numbers are quoted where they are used.
+
+\section{Obstacles, Terminals and Margins}
+
+The field contains $m$ disjoint polygonal obstacles $O_1, \ldots, O_m$, the base station $S_0 = (x_0, y_0)$ and the
+sensors $S_i = (x_i, y_i)$, $i = 1, \ldots, n$. The base and the sensors are the $n_t = n + 1$ \emph{terminals}, numbered
+$0, 1, \ldots, n$ as in the paper. (In the code, terminal 0 is the base and terminal $i$ is \code{scen["xy"][i - 1]}, the
+sensor with the 0-based id $i - 1$.)
+
+The paper defines the free space by inflating the obstacles by a safety clearance, eqs.~(4) and~(5):
+\begin{equation}
+  F = \R^2 \setminus \bigcup_{j=1}^{m} \operatorname{int}\bigl(O_j^{\mathrm{inflated}}\bigr), \qquad
+  \rsafe = \frac{w}{2} + \delta_{\mathrm{margin}}.
+  \label{eq:free}
+\end{equation}
+\code{geodesic.py} works with three margins:
+\begin{equation}
+  \rsafe = 2\,\mathrm{m}, \qquad
+  \rterm = \rsafe + 0.5\,\mathrm{m} = 2.5\,\mathrm{m}, \qquad
+  \rplan = \rsafe + R = 7\,\mathrm{m},
+  \label{eq:margins}
+\end{equation}
+with $R = L / \tan\delta_{\max} = 5$\,m from eq.~(7) and the defaults of \code{config.py}. Lines between two obstacle
+corners keep the large margin $\rplan$, which leaves the sink room to turn. Lines that start or end at a terminal keep only
+$\rterm$, because sensors may lie closer to an obstacle than $\rplan$: on seeds 1--10, 577 of the 1\,015 sensors do. The
+margin $\rsafe$ itself is not used here; the clearance of the final trajectory is measured against it later
+(Section~\ref{sec:meaning}). $\rterm$ has no name in the code, which writes \code{p["r\_safe"] + 0.5}. Table~\ref{tab:notation}
+lists the symbols.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Symbols and their names in \code{geodesic.py}.}
+\label{tab:notation}
+\begin{tabularx}{\textwidth}{@{}l l >{\raggedright\arraybackslash}X@{}}
+\toprule
+Symbol & Code & Meaning \\
+\midrule
+$O_k$, $k = 1, \ldots, m$ & \code{scen["obstacles"][k - 1]} & obstacle polygon (its vertices) \\
+$S_0$ & \code{scen["base"]}, terminal 0 & base station \\
+$S_i$, $i = 1, \ldots, n$ & \code{scen["xy"][i - 1]}, terminal $i$ & sensor \\
+$n_t$ & \code{n\_terminals}, \code{n\_t} & number of terminals, $n + 1$ \\
+$\rsafe, R, \rplan$ & \code{p["r\_safe"], p["R"], p["r\_plan"]} & margins and turning radius, eq.~\eqref{eq:margins} \\
+$\rterm$ & \code{p["r\_safe"] + 0.5} & margin of lines that touch a terminal \\
+$P_r(O_k)$ & \code{inflate(obstacles, r)} & $O_k$ inflated by $r$, as a polygon (Section~\ref{sec:inflate}) \\
+$q$ & \code{quad\_segs=2} & chords per quarter circle at the corners \\
+$\varepsilon$ & \code{1e-6} & depth by which a line may enter an inflated polygon \\
+$I_r$ & \code{\_inside(inflate(obstacles, r))} & union of the inflated polygons, shrunk by $\varepsilon$ \\
+$v_0, \ldots, v_{N-1}$ & \code{nodes} & graph nodes: the terminals, then the corners of the $P_{\rplan}(O_k)$ \\
+$E$, $w_{ab}$ & \code{graph} & edges of the visibility graph and their lengths \\
+$d_a(v)$, $\pred_a(v)$ & \code{dist[a, v]}, \code{pred[a, v]} & shortest distance from terminal $a$ to node $v$, and the node before $v$ \\
+$D$ & \code{D} & geodesic distances between terminals, an $n_t \times n_t$ matrix \\
+$\Gamma_{ab}$ & \code{path(geo, a, b)} & shortest obstacle-free polyline from terminal $a$ to terminal $b$ \\
+$O$ & \code{obstacles} & union of the original obstacles, for clearance checks \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Inflated Obstacles}
+\label{sec:inflate}
+
+The function \code{inflate} grows each obstacle by a distance $r$. The exact grown obstacle is the set of points within
+$r$ of it, the Minkowski sum with the disc $\mathcal{D}_r$ of radius $r$:
+\begin{equation}
+  O_k \oplus \mathcal{D}_r = \bigl\{ x \in \R^2 : \operatorname{dist}(x, O_k) \le r \bigr\}.
+  \label{eq:minkowski}
+\end{equation}
+Its boundary has round arcs at the convex corners. The code uses a polygon $P_r(O_k)$ in its place: the shapely
+\code{buffer} with \code{quad\_segs} $= q = 2$, whose boundary is built as follows (Figure~\ref{fig:inflate}).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{fig_inflate.pdf}
+  \caption{(a) An L-shaped obstacle, 16\,m by 20\,m with 6\,m wide arms, and its polygons $P_{\rplan}$ (blue, 12
+  vertices, which become graph nodes) and $P_{\rterm}$ (orange, dashed), drawn by \code{geodesic.inflate}. The dotted
+  line is the exact grown obstacle $O_k \oplus \mathcal{D}_{\rplan}$. At the reflex corner the two moved edges meet. (b) A
+  convex corner where the boundary turns through $\theta = 100^\circ$: eq.~\eqref{eq:nchords} gives 2 chords of
+  $\Delta = 50^\circ$, whose ends lie on the circle of radius $r$, and the chords come within $r\cos 25^\circ = 0.906\,r$
+  of the corner.}
+  \label{fig:inflate}
+\end{figure}
+
+\paragraph{Edges.} Each edge of $O_k$ is moved outward, parallel to itself, by the distance $r$.
+
+\paragraph{Convex corners.} Let the boundary of $O_k$ turn through the angle $\theta \in (0, \pi)$ at a convex corner $c$:
+$\theta$ is the angle between the outward normals of the edge that ends at $c$ and the edge that starts there, and the
+moved edges end on the circle of radius $r$ about $c$. The gap between them is closed by
+\begin{equation}
+  n_\theta = \max\Bigl(1,\ \Bigl\lfloor \frac{\theta}{\pi / (2q)} + \frac{1}{2} \Bigr\rfloor\Bigr)
+           = \max\Bigl(1,\ \Bigl\lfloor \frac{4\theta}{\pi} + \frac{1}{2} \Bigr\rfloor\Bigr)
+  \quad\text{chords, each turning through}\quad \Delta = \frac{\theta}{n_\theta},
+  \label{eq:nchords}
+\end{equation}
+that is, the arc is cut into steps of about $45^\circ$. The chord ends are the points
+\begin{equation}
+  c + r\,\bigl(\cos(\varphi_0 + j\Delta),\ \sin(\varphi_0 + j\Delta)\bigr), \qquad j = 0, 1, \ldots, n_\theta,
+  \label{eq:fillet}
+\end{equation}
+where $\varphi_0$ is the direction of the outward normal of the edge that ends at $c$, and the angle grows in the direction
+in which the boundary turns. A right-angled corner, for example, gets two chords of $45^\circ$.
+
+\paragraph{Reflex corners.} At a corner where the boundary turns the other way (the inside corner of an L), the two moved
+edges cross, and their crossing point is the vertex.
+
+\paragraph{Overlaps.} Where the moved boundary overlaps itself, as in the pocket of a C or the notches of a cross, the
+polygon is the union of the pieces, so the covered parts of the boundary disappear.
+
+\paragraph{How close the polygon comes to the obstacle.} A chord that turns through $\Delta$ comes within
+$r\cos(\Delta/2)$ of its corner, at its midpoint. By eq.~\eqref{eq:nchords}, $n_\theta = 1$ needs
+$\theta < 3\pi/8$, and $n_\theta = n \ge 2$ needs $\theta < (n + \frac{1}{2})\pi/4$, so
+\begin{equation}
+  \Delta < \frac{3\pi}{8} = 67.5^\circ, \qquad
+  r\cos\frac{\Delta}{2} > r\cos\frac{3\pi}{16} = 0.8315\,r.
+  \label{eq:sag}
+\end{equation}
+No vertex lies farther than $r$ from $O_k$, and every chord lies inside the disc of its corner, so
+\begin{equation}
+  \boxed{O_k \oplus \mathcal{D}_{0.8315\,r} \ \subseteq\ P_r(O_k) \ \subseteq\ O_k \oplus \mathcal{D}_r.}
+  \label{eq:inclusion}
+\end{equation}
+For $\rterm = 2.5$\,m the polygon keeps at least 2.08\,m from the obstacle, more than $\rsafe = 2$\,m; for
+$\rplan = 7$\,m it keeps at least 5.82\,m. Since $0.8315\,\rplan > \rterm$, every $P_{\rterm}(O_k)$ lies inside
+$P_{\rplan}(O_k)$.
+
+\paragraph{Check.} On 3\,000 random obstacles of \code{scenario.py} (random polygons, L, C and cross shapes), inflated by
+2.5\,m and by 7\,m, every one of the 29\,047 convex corners whose arc lies on the boundary has exactly the vertices of
+eq.~\eqref{eq:fillet}; at the other 6\,119 corners another arm of the same obstacle covers part of the arc. The largest
+chord angle was $67.44^\circ$, the closest approach of a boundary to its obstacle $0.8318\,r$, and the farthest vertex lay
+at $r$ to within $10^{-11}r$.
+
+\section{The Visibility Test}
+
+The function \code{\_inside} shrinks each inflated polygon by $\varepsilon = 10^{-6}$\,m and takes the union. For a
+margin $r$,
+\begin{equation}
+  I_r = \bigcup_{k=1}^{m} \bigl( P_r(O_k) \ominus \mathcal{D}_\varepsilon \bigr), \qquad
+  A \ominus \mathcal{D}_\varepsilon = \bigl\{ x : \text{the disc of radius } \varepsilon \text{ about } x \text{ lies in } A \bigr\}.
+  \label{eq:inside}
+\end{equation}
+A straight line segment $[p, q]$ is \emph{clear at margin $r$} if
+\begin{equation}
+  [p, q] \cap I_r = \emptyset.
+  \label{eq:clear}
+\end{equation}
+Shrinking by $\varepsilon$ removes a strip of width $\varepsilon$ along each boundary, so a clear segment may touch an
+inflated polygon or run along its boundary, but not enter it by more than $\varepsilon$. By eq.~\eqref{eq:inclusion}, a
+segment that is clear at margin $r$ keeps at least $0.8315\,r - \varepsilon$ from every obstacle.
+
+\section{The Visibility Graph}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{fig_graph.pdf}
+  \caption{The graph of \code{geodesic.build} on a small map: two obstacles, the base $S_0$ and four sensors. Blue
+  solid: $P_{\rplan}$ and its 28 corner nodes; orange dashed: $P_{\rterm}$. (a) Of the 528 pairs of nodes, 106 are joined:
+  61 edges touch a terminal and are tested at margin $\rterm$ (orange), and 45 join two corners and are tested at margin
+  $\rplan$ (grey). (b) The shortest path from $S_0$ to each sensor. $S_1$ lies in the inside corner of the L, inside
+  $P_{\rplan}$, and is reached by an edge tested at $\rterm$. The geodesic distances from $S_0$ are 51.4, 44.2, 76.2 and
+  43.6\,m, against straight-line distances of 24.0, 41.2, 62.8 and 39.5\,m.}
+  \label{fig:graph}
+\end{figure}
+
+\paragraph{Nodes.} The function \code{build} takes the terminals, followed by the corners of the inflated obstacles:
+\begin{equation}
+  \begin{aligned}
+  V &= \{ v_0, \ldots, v_{N-1} \}, \qquad v_a = S_a \quad (a = 0, \ldots, n),\\
+  v_{n_t}, \ldots, v_{N-1} &= \text{the vertices of the outer boundaries of } P_{\rplan}(O_1), \ldots, P_{\rplan}(O_m).
+  \end{aligned}
+  \label{eq:nodes}
+\end{equation}
+If a polygon had a hole, the corners of the hole would not be nodes; none of the 108 polygons on seeds 1--10 has one.
+
+\paragraph{Edges.} Every pair of nodes $a < b$ is tested once. Because $a < b$, the pair touches a terminal exactly when
+$a < n_t$:
+\begin{equation}
+  \boxed{(a, b) \in E \iff
+  \begin{cases}
+    [v_a, v_b] \cap I_{\rterm} = \emptyset & \text{if } a < n_t \text{ (the line starts or ends at a terminal)},\\
+    [v_a, v_b] \cap I_{\rplan} = \emptyset & \text{if } a \ge n_t \text{ (the line joins two corners)}.
+  \end{cases}}
+  \label{eq:edges}
+\end{equation}
+If there are no obstacles, every pair is an edge. Each edge has its straight-line length as its weight:
+\begin{equation}
+  w_{ab} = \lVert v_a - v_b \rVert = \sqrt{(x_a - x_b)^2 + (y_a - y_b)^2}.
+  \label{eq:weight}
+\end{equation}
+The graph is undirected, so $(a, b)$ and $(b, a)$ are the same edge. $N(N - 1)/2$ pairs are tested; on seed~1 there are
+99 terminals and 148 corner nodes, so 30\,381 pairs, of which 7\,898 are edges (6\,800 touching a terminal and 1\,098
+between corners).
+
+\section{Shortest Paths}
+
+\paragraph{Graph distance} (\code{dijkstra}). The geodesic distance between terminals $a$ and $b$ is the length of the
+shortest chain of edges between them:
+\begin{equation}
+  \boxed{D_{ab} = \min\Bigl\{ \sum_{l=1}^{L} w_{u_{l-1} u_l} \ :\ u_0 = a,\ u_L = b,\ (u_{l-1}, u_l) \in E \Bigr\},}
+  \label{eq:D}
+\end{equation}
+with $D_{ab} = \infty$ if no chain exists. The code computes it with Dijkstra's algorithm [2] from each terminal
+$a = 0, \ldots, n$. Starting from $d_a(a) = 0$ and $d_a(v) = \infty$ elsewhere, it repeatedly settles the unsettled node
+$u$ with the smallest $d_a(u)$ and updates each neighbour $v$ of $u$:
+\begin{equation}
+  \text{if } d_a(u) + w_{uv} < d_a(v): \qquad d_a(v) \leftarrow d_a(u) + w_{uv}, \qquad \pred_a(v) \leftarrow u.
+  \label{eq:relax}
+\end{equation}
+When it stops, every reachable node satisfies
+\begin{equation}
+  d_a(v) = \min_{u : (u, v) \in E} \bigl( d_a(u) + w_{uv} \bigr) \quad (v \ne a),
+  \label{eq:bellman}
+\end{equation}
+and $D_{ab} = d_a(b)$ for the terminals $b = 0, \ldots, n$. The code keeps $D = (D_{ab})$, an $n_t \times n_t$ matrix.
+
+\paragraph{The paper's distances.} Eq.~(9) and Step~1 of Section~0.9 are entries of $D$:
+\begin{equation}
+  r_i = \dgeo(S_0, S_i) = D_{0i}, \qquad
+  D_{\mathrm{geo}} = \bigl[\dgeo(i, j)\bigr] = \bigl[D_{ij}\bigr]_{i, j = 1, \ldots, n}.
+  \label{eq:paper}
+\end{equation}
+In the code these are \code{geo["D"][0, 1:]} and \code{geo["D"][1:, 1:]}, with 0-based sensor ids.
+
+\paragraph{Unreachable terminals.} If some $D_{ab} = \infty$, \code{build} stops with the error ``some sensors cannot be
+reached from the base station''. \code{scenario.py} calls it with \code{require\_all=False} instead, to drop candidate
+sensors that cannot be reached.
+
+\paragraph{The path} (\code{path}). The shortest path from terminal $a$ to terminal $b$ is read backwards from the
+predecessors:
+\begin{equation}
+  u_L = b, \qquad u_{l-1} = \pred_a(u_l) \ \text{ until } u_0 = a, \qquad
+  \Gamma_{ab} = \bigl( v_{u_0}, v_{u_1}, \ldots, v_{u_L} \bigr).
+  \label{eq:path}
+\end{equation}
+$\Gamma_{ab}$ is a polyline from $S_a$ to $S_b$ of length $D_{ab}$, and it is defined only when $D_{ab} < \infty$.
+\code{trajectory.py} uses it as the waypoints of a leg.
+
+\section{What \texorpdfstring{$D$}{D} Is}
+\label{sec:meaning}
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.52\textwidth]{fig_seed1.pdf}
+  \caption{Seed 1: 9 obstacles (grey), their polygons $P_{\rplan}$ (thin blue outline), the base (square) and 98 sensors.
+  The 57 hollow sensors lie inside $P_{\rplan}$. The lines are the 98 paths $\Gamma_{0i}$ from the base, eq.~\eqref{eq:path}.
+  The 23 orange paths pass through another sensor, where they bend with the margin $\rterm$; the blue ones bend only at
+  corners of $P_{\rplan}$. Some paths go round obstacles that reach beyond the 100\,m map.}
+  \label{fig:seed1}
+\end{figure}
+
+\paragraph{A metric.} Eq.~\eqref{eq:D} is a shortest-path distance in an undirected graph with non-negative weights, so
+\begin{equation}
+  D_{aa} = 0, \qquad D_{ab} = D_{ba}, \qquad D_{ac} \le D_{ab} + D_{bc}, \qquad D_{ab} \ge \lVert S_a - S_b \rVert,
+  \label{eq:metric}
+\end{equation}
+the last because every chain is at least as long as the straight line. On seeds 1--10, $D$ was symmetric and met the
+triangle inequality to within $6 \times 10^{-14}$\,m, and never fell below the straight-line distance.
+
+\paragraph{Bounds.} Among polygonal obstacles, a shortest path between two points is a polyline whose inner vertices are
+corners of the obstacles [1, 3]. So, if the whole graph were tested at one margin, $D$ would be the true obstacle-avoiding
+distance at that margin. Here the margin depends on the edge, and $D$ lies between the true distances at the two margins.
+Write $d(p, q; X)$ for the length of a shortest path from $p$ to $q$ that does not meet the set $X$. Then
+\begin{equation}
+  \boxed{d\bigl(S_a, S_b;\ I_{\rterm}\bigr) \ \le\ D_{ab} \ \le\
+  d\Bigl(S_a, S_b;\ \operatorname{int} \textstyle\bigcup_k P_{\rplan}(O_k)\Bigr),}
+  \label{eq:bounds}
+\end{equation}
+where the upper bound needs $S_a$ and $S_b$ to lie outside the polygons $P_{\rplan}$. The lower bound holds because every
+edge is clear at margin $\rterm$ (an edge clear at $\rplan$ is also clear at $\rterm$, since
+$P_{\rterm} \subseteq P_{\rplan}$). The upper bound holds because the shortest path that stays out of the polygons
+$P_{\rplan}$ bends only at their corners, which are nodes, and each of its segments passes the test of
+eq.~\eqref{eq:edges}. On seeds 1--10, both bounds held for every pair, with the true distances computed by single-margin
+visibility graphs.
+
+\paragraph{Paths through other terminals.} A chain in eq.~\eqref{eq:D} may pass through other terminals, because they
+are nodes too. Both segments at such a terminal are tested only at $\rterm$, so a sensor close to an obstacle can serve
+as a tighter corner than the corners of $P_{\rplan}$ (Figure~\ref{fig:seed1}). On seeds 1--10, 245 of the 1\,015 paths
+from the base pass through another terminal.
+
+\paragraph{What is not guaranteed here.} $D$ and $\Gamma_{ab}$ describe polylines, not the Dubins paths the sinks
+drive. A clear segment keeps $0.8315\,\rterm - \varepsilon \ge 2.08$\,m from the obstacles if it touches a terminal,
+and $0.8315\,\rplan - \varepsilon \ge 5.82$\,m if not, but the Dubins path that follows the waypoints can swing wider
+or cut inside. Eq.~(19) of the paper is therefore checked on the final trajectory $\Gamma_k$, against the original
+obstacles that \code{build} also returns:
+\begin{equation}
+  O = \bigcup_{k=1}^{m} O_k, \qquad \operatorname{dist}\bigl(\Gamma_k(t), O\bigr) \ge \rsafe .
+  \label{eq:clearance}
+\end{equation}
+
+\section{Constants}
+
+\begin{table}[h]
+\centering
+\small
+\caption{Constants in \code{geodesic.py}, with the defaults of \code{config.py}.}
+\label{tab:constants}
+\begin{tabularx}{\textwidth}{@{}l l >{\raggedright\arraybackslash}X@{}}
+\toprule
+Constant & Value & Role \\
+\midrule
+$\rplan = \rsafe + R$ & 7\,m & inflation for the corner nodes and for lines between two corners \\
+$\rterm = \rsafe + 0.5$ & 2.5\,m & inflation for lines that start or end at a terminal \\
+$q$ (\code{quad\_segs}) & 2 & chords per quarter circle, eq.~\eqref{eq:nchords} \\
+$\varepsilon$ & $10^{-6}$\,m & how far a line may enter an inflated polygon, eq.~\eqref{eq:inside} \\
+\code{require\_all} & \code{True} & stop if a terminal cannot be reached (\code{scenario.py} passes \code{False}) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Relation to the Paper}
+
+The paper states what $\dgeo$ is (eq.~(9): ``an obstacle-aware geodesic walking distance in the free space''; Step~1 of
+Section~0.9: ``the shortest obstacle-respecting distance''; and ``visibility-based'' geometry in the introduction of
+Section~0.9), but not how it is computed. The code fills the gaps as follows; the README of the implementation records the
+same choices in its table ``Choices where the paper is silent''.
+
+\begin{table}[h]
+\centering
+\small
+\caption{The paper and \code{geodesic.py}.}
+\label{tab:paper}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright}p{0.22\textwidth} >{\raggedright}p{0.3\textwidth} >{\raggedright\arraybackslash}X@{}}
+\toprule
+Topic & Paper & \code{geodesic.py} \\
+\midrule
+Inflation & by $\rsafe$, eqs.~(4)--(5) & $\rplan$ and $\rterm$ in the graph, eq.~\eqref{eq:edges}; $\rsafe$ on the final path, eq.~\eqref{eq:clearance} \\
+Inflated shape & not given & polygon with chords at the corners, eqs.~\eqref{eq:nchords}--\eqref{eq:inclusion} \\
+How $\dgeo$ is computed & ``visibility-based'' & visibility graph and Dijkstra, eqs.~\eqref{eq:nodes}--\eqref{eq:D} \\
+Sensors close to obstacles & not covered & lines that touch a terminal use $\rterm$, eq.~\eqref{eq:edges} \\
+Paths via sensors & not covered & allowed, eq.~\eqref{eq:D} \\
+Unreachable sensors & not covered & an error, or dropped by \code{scenario.py} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section*{References}
+
+[1] T. Lozano-P\'erez and M. A. Wesley, ``An algorithm for planning collision-free paths among polyhedral obstacles,''
+Communications of the ACM, vol.~22, no.~10, pp.~560--570, 1979.
+
+[2] E. W. Dijkstra, ``A note on two problems in connexion with graphs,'' Numerische Mathematik, vol.~1, pp.~269--271,
+1959.
+
+[3] M. de Berg, O. Cheong, M. van Kreveld and M. Overmars, Computational Geometry: Algorithms and Applications, 3rd ed.,
+Springer, 2008, Chapter~15 (Visibility Graphs).
+
+\end{document}
