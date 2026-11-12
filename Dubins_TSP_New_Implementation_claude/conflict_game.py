@@ -247,10 +247,15 @@ def _first_conflict(trajs, n0, p):
     return f, [pair for pair, u in found.items() if len(u) > f and u[f]], found
 
 
-def resolve(trajs, T, L, geo, p):
+def resolve(trajs, T, L, geo, p, trace=None):
     """Steps 8-10 of Section 0.11: find the earliest conflict, let the sinks involved
     play the game, apply the equilibrium, continue after it. Returns updated copies
-    of trajs, T (mission times), L (path lengths) and the list of game records."""
+    of trajs, T (mission times), L (path lengths) and the list of game records.
+
+    If trace is a list, one entry per game is appended to it for the animations
+    (pipeline_gifs.py): {"trajs" (every sink's trajectory just before the game), "acts"
+    (each player's strategies, with their trajectories), "f" (frame of the conflict)}.
+    It changes nothing else."""
     trajs, T, L = dict(trajs), dict(T), dict(L)
     h = p["d_safe"] + p["detour_margin"]
     lead = int(math.ceil(math.pi * math.sqrt(h * p["R"] / 2) / (p["v"] * p["dt"]))) + 1
@@ -268,6 +273,8 @@ def resolve(trajs, T, L, geo, p):
             f_end = max(f_end, n)
         s, e = max(1, f - lead), f_end + lead              # decide `lead` frames before the conflict
         acts = {k: strategies(k, trajs, T, s, f, f_end, e, geo, p) for k in players}
+        if trace is not None:
+            trace.append({"trajs": dict(trajs), "acts": acts, "f": f})
         prof, rec = play(players, acts, trajs, s, p)
         for k in players:
             x = acts[k][prof[k]]

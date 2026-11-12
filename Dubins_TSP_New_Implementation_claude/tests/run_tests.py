@@ -281,6 +281,21 @@ def test_plan_routes_log_changes_nothing_and_follows_the_queue():
     assert len({slot[j] for j in states[-1]}) == len(states[-1])  # every final group has its own colour number
 
 
+def test_game_trace_changes_nothing():
+    """The trace that conflict_game.resolve records for the game animation must not change its result."""
+    p = default_params(base=(50.0, -100.0), B=1000.0)
+    trajs = {0: _line((0, 50), (100, 50)), 1: _line((50, 0), (50, 100))}
+    T, L = {k: 20.0 for k in trajs}, {k: 100.0 for k in trajs}
+    geo = {"obstacles": None}
+    plain = cg.resolve(trajs, T, L, geo, p)
+    trace = []
+    logged = cg.resolve(trajs, T, L, geo, p, trace)
+    assert all(np.array_equal(plain[0][k], logged[0][k]) for k in trajs) and plain[1] == logged[1]
+    assert len(trace) == len(logged[3]) >= 1
+    for tr, g in zip(trace, logged[3]):
+        assert sorted(tr["acts"]) == g["players"] and set(tr["trajs"]) == set(trajs)
+
+
 def test_animation_conflict_count_matches_summary():
     """The animations count the time in conflict as conflict_game.summary does."""
     import animations

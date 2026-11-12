@@ -33,7 +33,8 @@ python compare_dubins.py --seeds 1 --jobs 2    # same, on chosen maps
 python compare_dubins.py --figures             # also saves output/compare_*.png; the first seed gives the same-tour figure
 python ga_evolution.py --seed 1                # table of every GA run; for the run that improved most: convergence and fitness-split PNGs, evolution, population, radial, unimodal and unimodal-Dubins GIFs (about 4.5 min)
 python ga_evolution.py --seed 1 --run 0 --no-gif   # another run of the table, PNGs only
-python pipeline_gifs.py --seed 1               # GIFs of the whole algorithm: conflicts, splitting, partition (1, 2, 3 ... sinks), one sink's refine, pipeline (about 4.5 min)
+python pipeline_gifs.py --seed 1               # GIFs of the whole algorithm: conflicts, splitting, partition (1, 2, 3 ... sinks), one sink's refine, pipeline, game replay, six Dubins types, geodesic wave (about 9 min)
+python pipeline_gifs.py --only dubins          # the six-Dubins-types GIF alone; plans no map
 python pipeline_gifs.py --seed 1 --only refine --sink 3   # one of them; --budget/--resolver/--dubins as in planner.py
 python tests/run_tests.py                      # whole suite
 
@@ -85,7 +86,7 @@ What spans several modules:
 - **Three length measures.** The GA's fitness is straight-line length + m(π)·π·R, with no Dubins paths; only its radial distance `r` is geodesic. `partition.workload` uses geodesic legs. Only the budget test `T <= B` uses real Dubins lengths, from `trajectory.build`.
 - **Choosing the turn type.** `p["dubins_method"]` is read only in `trajectory.py`, at three call sites that must agree: the heading search's cost table (`dubins_path.returnPathDistances`), and `_leg_clear` and `build` (`dubins_path.returnDubinsPath`). Otherwise the heading search would optimise paths the sink does not drive. `findDubinsPath(..., "shortest")` is always the true minimum of the six turn types. `calculateCSCLengths` and `calculateCCCLengths` also work on arrays of headings, which keeps the heading search fast.
 - **Frames are the shared timeline.** A trajectory is an (F, 2) array with one position every `dt` seconds, and all sinks start at t = 0. Resolvers see only frames: WAIT repeats frames, DETOUR replaces a window, and both update T and L. So `result["tours"]` is the plan before resolving, while `check` reads the final `result["frames"]`, `result["T"]` and `result["L"]`.
-- **Interchangeable resolvers.** Both have the signature `resolve(trajs, T, L, geo, p) -> (trajs, T, L, records)`, and `conflict_game.summary` scores both. Eq. 20 applies only while both sinks are on their mission, and not when both are inside the docking zone (`base_radius`).
+- **Interchangeable resolvers.** Both have the signature `resolve(trajs, T, L, geo, p) -> (trajs, T, L, records)`, and `conflict_game.summary` scores both. `conflict_game.resolve` also takes an optional `trace` list for the game animation; the planner never passes it. Eq. 20 applies only while both sinks are on their mission, and not when both are inside the docking zone (`base_radius`).
 - **Game invariant.** A pair's danger is charged equally to both players, which makes it an exact potential game, so best response always stops. Changes to the costs in `conflict_game.play` must preserve this; `test_game_is_an_exact_potential_game` checks it. The proof is in `theory_claude/Corridor_Game_Theory.pdf`.
 - **Obstacle margins.** Corner-to-corner lines stay outside obstacles inflated by `r_plan` = `r_safe` + R. Lines touching a sensor or the base only need `r_safe` + 0.5 m. Final clearance is measured against the original obstacles and needs `r_safe`.
 - **Curvature.** Dense Dubins paths measure 1.000/R. `trajectory.max_curvature` fits circles through points at least 1 m apart, so sampled frames read slightly higher, and `curvature_tol` = 0.15 allows for that.
@@ -94,6 +95,7 @@ What spans several modules:
   - `ga_tour.optimize(..., history)`, `planner.plan_routes(..., ga_log)` and `planner.run(..., ga_log)` record every generation of every GA run. Each `ga_log` entry also keeps the tour's path and length `L` and, for a split group, its `halves`. They feed `ga_evolution.py` and `pipeline_gifs.py`.
   - Recording must make no random draws, or every result shifts. `test_ga_history_does_not_change_the_result` and `test_plan_routes_log_changes_nothing_and_follows_the_queue` check this.
   - `animations.split_states` rebuilds the planner's first-in, first-out queue of groups from the log, and `animations.partition_states` rebuilds the partition after each split (1, 2, ... K groups). Change them if the queue in `plan_routes` changes; `split_states` asserts when they disagree.
+  - `animations.game_replay_data` re-runs round 0 of `conflict_game.resolve` on the planned tours with `trace`, which records each game's trajectories and strategies. `test_game_trace_changes_nothing` checks that recording changes no result. `game_animation` asserts that Φ, recomputed from the trace, equals the game record's potential trace.
 - **GIFs.** The new GIFs are saved with `plot.save_gif`, which gives all frames one shared palette, so a colour used by only a few pixels keeps its colour, and the files are much smaller. The older `plot.animation` (`planner.py --gif`) still uses matplotlib's writer. In the new GIFs, red (`#d03b3b`) means a problem and green (`#0ca30c`) means fixed, always with a text label.
 - **Determinism.** `run` uses `rng(seed)` for Steps 1-7 and `rng(seed + 1000)` for Steps 8-12, so the resolvers start those steps alike. An extra random draw or a geometry change shifts every result, and the README's tables were measured on seeds 1-10. Re-measure and update them when a change affects them; `compare_dubins.py` regenerates the Dubins comparison.
 
@@ -180,6 +182,14 @@ Newest first.
 
 ### 2026-11-12
 
+- **Added three more GIFs to `pipeline_gifs.py`**, at the user's request (ideas 1-3 of the second list given to the user). The drawing is in `animations.py`.
+  - **`seed1_game.gif` (`--only game`, `--game N`).** The departure game, game 2 of 6 (13 players, 8 switches, all GO → WAIT), is replayed switch by switch.
+    - Each profile gets a 12 s map clip and a per-player timeline (WAIT black, stops at sensors grey, conflicts red), with the potential Φ shown per switch.
+    - Φ falls from 13284 to 1594, by exactly each mover's gain: 5904, 2482, 1832, 641, 417, 200, 107, 107. Risk falls from 61.5 to 7.0 s and the cost of the moves rises to 82.0 s; later games remove the risk left.
+    - `conflict_game.resolve` gained an optional `trace` argument; with no trace it behaves as before. Re-running it on the seed 1 tours reproduced the planner's result exactly.
+  - **`dubins_six_types.gif` (`--only dubins`, needs no map).** One leg from (0, 0) east to (12, 5), R = 5 m, with the end heading turning in 4° steps. Over the 90 headings, the Section 0.13 rule picks a longer type at 33 (up to +320 %), and at 28 its type does not exist (fallback to the shortest).
+  - **`seed1_geodesic.gif` (`--only geodesic`).** The shortest-path tree from the base is grown by geodesic distance ρ, against a straight-line circle, and sensors more than 2 % longer than the straight line are ringed. The largest detour on seed 1 is +32 %. The tree distances equal `geo["D"][0, 1:]`, which the animation asserts.
+  - Added `test_game_trace_changes_nothing`; all 32 tests pass (4 min 41 s). The README is updated, and nothing is committed.
 - **Added `ga_seed1_run5_unimodal_dubins.gif`**, at the user's request: the unimodal animation with each tour drawn as the Dubins path from `trajectory.build`.
   - `ga_evolution.py` builds one tour for each best order shown (17 on run 5, about 1 s each). `plot.ga_unimodal_animation(..., tours=...)` draws them and adds tiles for the Dubins length and T.
   - Measured on run 5: the Dubins length falls from 1529 m to 890 m, and T from 371.2 to 243.5 s, which equals the log's T for run 5. But in 5 of the 16 improving steps the Dubins path got longer (generations 3, 14, 37, 39 and 60), because the GA scores straight lines.
