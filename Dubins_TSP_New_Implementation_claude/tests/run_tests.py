@@ -230,6 +230,63 @@ def test_peaks_counts_radial_maxima():
     assert ga_tour.peaks([0, 1, 2, 3, 4], r) == 2 and ga_tour.peaks([0, 4, 2, 1, 3], r) == 1
 
 
+def test_ga_history_does_not_change_the_result():
+    """Recording the generations (ga_evolution.py) must not change the tour, and what it records must add up."""
+    scen, geo = _map()
+    xy, base, r = scen["xy"], scen["base"], geo["D"][0, 1:]
+    ids = np.arange(30)
+    p = default_params(generations=40)
+    plain = ga_tour.optimize(ids, xy, base, r, p, np.random.default_rng(3))
+    history = []
+    logged = ga_tour.optimize(ids, xy, base, r, p, np.random.default_rng(3), history)
+    assert logged == plain
+    assert len(history) == p["generations"] + 1                   # generation 0 to the final population
+    assert all(m == 1 for m in history[0]["peaks"])               # Section 0.8.2: generation 0 is radially unimodal
+    best = [g["fitness"][0] for g in history]
+    assert all(b1 <= b0 + 1e-9 for b0, b1 in zip(best, best[1:]))   # the better half is kept: the best never rises
+    assert history[-1]["orders"][0] == plain                      # the last entry's best is the tour returned
+    for g in history:
+        assert all(np.diff(g["fitness"]) >= -1e-9)                # best first
+        assert np.allclose(g["fitness"], g["length"] + g["peaks"] * np.pi * p["R"])
+        assert math.isclose(g["fitness"][0], ga_tour.fitness(g["orders"][0], xy, base, r, p["R"]))
+    short = []
+    assert ga_tour.optimize(np.arange(2), xy, base, r, p, np.random.default_rng(3), short) == sorted([0, 1], key=lambda i: r[i])
+    assert short == []                                            # two sensors: no GA run, nothing recorded
+
+
+def test_plan_routes_log_changes_nothing_and_follows_the_queue():
+    """The GA log of plan_routes (ga_evolution.py, pipeline_gifs.py) must not change the plan, and the
+    splitting animation rebuilds the queue of groups from it."""
+    import animations
+    scen, _ = _map()
+    sub = {**scen, "xy": scen["xy"][:25], "tau": scen["tau"][:25]}
+    geo = geodesic.build(sub, P)
+    plain, _ = planner.plan_routes(sub, geo, P, np.random.default_rng(4))
+    log = []
+    logged, _ = planner.plan_routes(sub, geo, P, np.random.default_rng(4), ga_log=log)
+    assert [t["order"] for t in logged] == [t["order"] for t in plain]
+    assert [r["order"] for r in log if r["kept"]] == [t["order"] for t in plain]
+    assert any(not r["kept"] for r in log)                       # this map needs at least one split
+    for r in log:
+        assert np.allclose(r["path"][0], sub["base"]) and np.allclose(r["path"][-1], sub["base"])
+        if not r["kept"]:
+            halves = np.concatenate(r["halves"]).tolist()
+            assert sorted(halves) == sorted(np.asarray(r["ids"]).tolist())
+    assert len(animations.split_states(log)) == len(log)         # raises if the log does not follow the queue
+
+
+def test_animation_conflict_count_matches_summary():
+    """The animations count the time in conflict as conflict_game.summary does."""
+    import animations
+    t = np.arange(0, 21)[:, None]
+    trajs = {0: np.hstack([t * 2.0 + 60, 0 * t + 50]), 1: np.hstack([100 - t * 2.0, 0 * t + 51]),
+             2: np.hstack([0 * t + 80, t * 2.0])}
+    tl = animations.conflict_timeline(trajs, P)
+    s = cg.summary(trajs, P)
+    assert s["pairs"] and math.isclose(tl["cum"][-1], s["exposure"])
+    assert math.isclose(float(np.min(tl["closest"])), s["closest"])
+
+
 # ---------------------------------------------------------------- partitioning (0.9)
 
 def test_bisection_is_disjoint_and_complete():

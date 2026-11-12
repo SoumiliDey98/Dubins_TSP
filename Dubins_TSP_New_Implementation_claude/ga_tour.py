@@ -13,10 +13,25 @@ def peaks(order, r):
     return max(int(np.sum((d[1:-1] > d[:-2]) & (d[1:-1] > d[2:]))), 1)
 
 
+def euclid_length(order, xy, base):
+    """L_euclid(pi): straight-line length of the tour from the base and back. Obstacles are ignored."""
+    pts = np.vstack([base, xy[order], base])
+    return float(np.sum(np.hypot(*np.diff(pts, axis=0).T)))
+
+
 def fitness(order, xy, base, r, R):
     """Fitness(pi) = L_euclid(pi) + m(pi) * pi * R   (Section 0.8.1); lower is better."""
-    pts = np.vstack([base, xy[order], base])
-    return float(np.sum(np.hypot(*np.diff(pts, axis=0).T))) + peaks(order, r) * np.pi * R
+    return euclid_length(order, xy, base) + peaks(order, r) * np.pi * R
+
+
+def _record(history, pop, xy, base, r, R):
+    """Append one generation to history: every tour, best first, with its straight-line length,
+    its number of peaks m(pi) and its fitness. Makes no random draws."""
+    pop = sorted(pop, key=lambda tour: fitness(tour, xy, base, r, R))
+    length = np.array([euclid_length(tour, xy, base) for tour in pop])
+    m = np.array([peaks(tour, r) for tour in pop])
+    history.append({"orders": [list(tour) for tour in pop], "length": length, "peaks": m,
+                    "fitness": length + m * np.pi * R})
 
 
 def initial_population(ids, r, size, rng):
@@ -31,10 +46,15 @@ def initial_population(ids, r, size, rng):
     return pop
 
 
-def optimize(ids, xy, base, r, p, rng):
+def optimize(ids, xy, base, r, p, rng, history=None):
     """Best visiting order of the sensors `ids` found by the GA: keep the better half,
     refill with ordered crossover (a prefix of one parent, the rest in the other
-    parent's order) and an occasional swap mutation."""
+    parent's order) and an occasional swap mutation.
+
+    If history is a list, one entry per generation is appended to it (see _record): entry 0
+    is the initial population and the last entry the final one, so there are generations + 1.
+    Recording makes no random draws, so the result is the same with or without it. With
+    two sensors or fewer there is no GA run and history stays empty."""
     ids = np.asarray(ids)
     if len(ids) <= 2:
         return sorted(ids.tolist(), key=lambda i: r[i])
@@ -43,6 +63,8 @@ def optimize(ids, xy, base, r, p, rng):
     half = p["pop_size"] // 2
     for _ in range(p["generations"]):
         pop.sort(key=score)
+        if history is not None:
+            _record(history, pop, xy, base, r, p["R"])
         parents, children = pop[:half], []
         while half + len(children) < p["pop_size"]:
             i, j = rng.choice(half, 2, replace=False)
@@ -54,4 +76,6 @@ def optimize(ids, xy, base, r, p, rng):
                 child[a], child[b] = child[b], child[a]
             children.append(child)
         pop = parents + children
+    if history is not None:
+        _record(history, pop, xy, base, r, p["R"])
     return min(pop, key=score)

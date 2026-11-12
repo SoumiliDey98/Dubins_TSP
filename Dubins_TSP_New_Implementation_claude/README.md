@@ -20,6 +20,9 @@ python planner.py --seed 1 --resolver simple   # "wait your turn" instead of the
 python planner.py --seed 1 --dubins pdf  # turn-type rule of Section 0.13; output/seed1_pdf.png
 python compare_dubins.py                 # both Dubins methods on seeds 1–10, 10–13 minutes on 2 cores
 python compare_dubins.py --figures       # the same, and also saves output/compare_*.png
+python ga_evolution.py --seed 1          # how the GA improves: table of its runs, output/ga_seed1_run5_*.png and *.gif
+python ga_evolution.py --seed 1 --run 0  # the same figures for another GA run of the table
+python pipeline_gifs.py --seed 1         # four GIFs of the whole algorithm improving the plan, output/seed1_*.gif
 python tests/run_tests.py                # all tests, about 5 minutes
 ```
 
@@ -35,13 +38,16 @@ To change any parameter, edit `config.py` or pass it to
 | `geodesic.py` | eq. 9, 0.9 step 1, 0.11 step 2 | Visibility graph around obstacles inflated by r_safe + R, then Dijkstra: geodesic distance and path between every pair of sensors and the base. |
 | `dubins_path.py` | 0.1, 0.12–0.13 | Dubins path between two poses, with the names and steps of the DubinsPath notebook program (`turnType`, `cp1`, `Stan`, `psiD`, …). A "word" in this README is a `turnType` in the code. By default all six are computed and the shortest is kept, which differs from Section 0.13; `dubins_method="pdf"` uses the rule of Section 0.13 (see the comparison below). The opening comment of the file lists the limitations of the notebook program and how they are corrected. |
 | `trajectory.py` | 0.5, eq. 17, eq. 19 | Tour → waypoints → headings → Dubins legs → positions every dt seconds. T_k = L_k/v + Σ τᵢ. |
-| `ga_tour.py` | 0.8 | Radially unimodal GA: initial tours with one radial peak; fitness = L_euclid + m(π)·π·R. |
+| `ga_tour.py` | 0.8 | Radially unimodal GA: initial tours with one radial peak; fitness = L_euclid + m(π)·π·R. Can record every generation (`history`) without changing the result. |
+| `ga_evolution.py` | 0.8 | Plans Steps 1–7 as `planner.py` does, records every GA run, prints a table of them, and draws one run's convergence graph, fitness split and three GIFs (see "How the GA improves" below). |
+| `pipeline_gifs.py` | 0.11 | Plans a map as `planner.py` does and makes four GIFs of the whole algorithm improving the plan (see "Animations of the whole algorithm" below). |
+| `animations.py` | 0.8–0.11 | The drawing for `pipeline_gifs.py`. |
 | `partition.py` | 0.9 | Geodesic spectral bisection with the min–max workload threshold. |
 | `conflict_game.py` | eq. 20, 0.10, 0.10.1 | Conflict detection and the GO / WAIT / DETOUR best-response game (from `theory_claude/corridor_game_gt.py`). |
 | `simple_resolver.py` | eq. 20, 0.10.2 | The simplest alternative to the game, no game theory: sinks take turns, longest tour first; each stops just long enough to clear a meeting. |
 | `planner.py` | 0.6, 0.11 | Steps 1–12, the checks of Section 0.7, the objectives K, T_max, L_total, and the command line. |
 | `compare_dubins.py` | 0.13 | Runs both Dubins methods on the same maps and prints the numbers of the comparison below; `--figures` also saves its five figures. |
-| `plot.py` | — | PNG of the routes; optional GIF; the comparison figures. |
+| `plot.py` | — | PNG of the routes; optional GIF; the comparison figures; the GA figures and GIF. |
 | `tests/run_tests.py` | — | Unit tests per module plus end-to-end runs. |
 
 ## How it works (Section 0.11)
@@ -240,6 +246,34 @@ The rule's saving on single paths most likely outweighs its slower table, becaus
 - `compare_same_tour.png`: the tour that changes most on the first seed, drawn with both methods.
 - `compare_leg_types.png`: how the rule's word does on the legs of each final plan.
 - `compare_by_distance.png`: the table above, by leg length.
+
+## How the GA improves, generation by generation (seed 1)
+
+`python ga_evolution.py --seed 1` plans Steps 1–7 exactly as `planner.py` does, with the same random numbers, and records every generation of every GA run. It prints a table of the runs and saves three figures for one run: by default the run whose best tour improved most (run 5 on seed 1); `--run N` picks another.
+
+- `output/ga_seed1_run5_convergence.png`: the objective the GA minimises, Fitness(π) = straight-line length + m(π)·π·R (Section 0.8.1), for the best tour, with the population mean and the range from best to worst, per generation.
+- `output/ga_seed1_run5_fitness_split.png`: the best tour's fitness split into straight-line length and peak penalty m(π)·π·R, and the number of peaks m(π) of the best tour and of the population on average.
+- `output/ga_seed1_run5_evolution.gif`: the 50 tours of the population (grey) and the best tour (blue) on the map, one frame per generation, with both curves drawn alongside. Tours are drawn as straight lines between sensors, because that is what the fitness scores.
+- `output/ga_seed1_run5_population.gif`: every tour of the population as a dot, straight-line length across and m(π) up, one frame per generation. Diagonal lines join tours of equal fitness: one more peak is worth π·R = 15.7 m of length, so a tour improves by moving left or down across them. The cloud of 50 dots shrinks to a few points.
+- `output/ga_seed1_run5_radial.gif`: the distance from the base of each sensor in the order the best tour visits them, one frame per generation, with each peak marked. Generation 0 has one hill (radially unimodal, Section 0.8.2); by generation 100 run 5's best tour has five.
+
+What it shows on seed 1 (default parameters, B = 80 s):
+
+- **The best tour never gets worse, but it improves in steps.** The GA keeps the better half of each generation, so the best fitness cannot rise, but most generations leave it unchanged. Run 5 (20 sensors) improves in 16 of 100 generations, from 1357 m to 832 m (−38.7 %). Run 0 (all 98 sensors) improves in 12, from 4389 m to 4054 m (−7.6 %), and is still improving at generation 100.
+- **The GA improves the large groups, which are split anyway.** Of the 29 GA runs, the 14 on groups that are later split (9–98 sensors) gain a median of 8.9 % over generation 0, at most 38.7 %.
+- **The final sinks' tours mostly come straight from the initial population.** In 13 of the 15 runs that give the final sinks' tours (3–13 sensors), the GA never beats the best tour of generation 0, which the radially unimodal initialisation (Section 0.8.2) already contains. The other two gain 3.1 % and 10.2 %.
+- **Radial unimodality is not kept on large groups.** A peak costs only π·R = 15.7 m, so the GA trades peaks for length: the best tour of run 0 ends with m(π) = 9, 461 m shorter, and that of run 5 with m(π) = 5, 588 m shorter. Of the 15 final sinks' tours, 14 keep m(π) = 1 and one has 2.
+- **The population loses its variety.** Run 0 falls from 50 different tours to 2 by generation 50.
+- **Recording changes nothing.** It makes no random draws, so the plan is the same: `planner.py --seed 1` still gives K = 15, T_max = 79.6 s, L_total = 2927 m. `test_ga_history_does_not_change_the_result` checks this for the GA, and `test_plan_routes_log_changes_nothing_and_follows_the_queue` for the planner.
+
+## Animations of the whole algorithm (seed 1)
+
+`python pipeline_gifs.py --seed 1` plans the map once, exactly as `planner.py` does, and makes four GIFs that each show the plan getting better (about 4 minutes in all; `--only` picks some). Every GIF uses one colour palette for all its frames, so a colour stays the same throughout. Red always means a problem (closer than d_safe, or T > B) and green means fixed (T ≤ B, no conflict), each with a text label.
+
+- `output/seed1_conflicts.gif` (Steps 8–10, 18 s): two maps side by side, the 15 sinks moving as planned and after the conflict game. A red link joins two sinks closer than d_safe = 3 m outside the docking zone. Below, the closest distance between any two sinks over time, and above each map the time in conflict so far: 63.0 s summed over 16 pairs in the plan, 0.0 s after the game. Most of the planned conflicts happen in the first 10 s, as the sinks leave the base together.
+- `output/seed1_splitting.gif` (Steps 1–7, 31 s): one step per GA run. A group's tour is drawn in black, then turns green (T ≤ B, kept as a sink) or red (T > B, split in two, with the halves outlined); groups still waiting are grey. Beside it, the tour time of every run so far against B on a log scale: one sink with all 98 sensors would need 1202 s, and after 29 GA runs every one of the 15 tours fits within 80 s.
+- `output/seed1_sink8_refine.gif` (8 s): one sink's tour in three stages, each morphing into the next. Sink 8's 5 sensors in the GA's order are 121 m apart as straight lines (what the fitness scores), 128 m along the waypoints around the obstacles, and 177 m along the Dubins path it drives (+47 %), so T = 177 / 5 + 15.6 s of dwell = 51.0 s. The default sink is the one whose Dubins path is longest compared with its straight lines; `--sink` picks another.
+- `output/seed1_pipeline.gif` (36 s): all of it in one GIF. The GA orders all sensors for one sink, then groups are split until every tour fits B, then the final Dubins routes, the sinks moving as planned with their conflicts, and the same after the conflict game. Score tiles show K, T_max, L_total and the time in conflict as they change. L_total rises from 2925.6 m planned to 2926.8 m after the game, because of the game's one DETOUR, and T_max stays at 79.6 s.
 
 ## Changes marked in `Dubins_TSP.pdf` (Section 0.13)
 

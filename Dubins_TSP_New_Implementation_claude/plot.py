@@ -5,6 +5,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator
 from matplotlib.patches import Patch, PathPatch
 from matplotlib.patches import Polygon as PolygonPatch
 from matplotlib.path import Path
@@ -305,3 +306,301 @@ def compare_by_distance(bands, R, path):
         right.text(extra, y, f"  +{extra:.1f} %", va="center", fontsize=8.5, color=INK, zorder=4)
     fig.savefig(path, facecolor=SURFACE)
     plt.close(fig)
+
+
+def save_gif(fig, update, n_frames, path, fps):
+    """Save update(0), ..., update(n_frames - 1) as a looping GIF and close the figure. All frames share
+    one palette, taken from eight frames spread over the animation, so that a colour used by only a few
+    pixels in some frame (a green dot, say) keeps its colour there. Frames are drawn one at a time, and
+    equal neighbours are merged by Pillow into one longer frame."""
+    from PIL import Image
+
+    def render(i):
+        update(i)
+        fig.canvas.draw()
+        return Image.fromarray(np.asarray(fig.canvas.buffer_rgba())[..., :3].copy())
+
+    sample = [np.asarray(render(i)) for i in np.unique(np.linspace(0, n_frames - 1, 8).astype(int))]
+    palette = Image.fromarray(np.concatenate(sample, axis=0)).quantize(colors=255, method=Image.Quantize.MEDIANCUT)
+    quantize = lambda im: im.quantize(palette=palette, dither=Image.Dither.NONE)
+    first = quantize(render(0))
+    first.save(path, save_all=True, append_images=(quantize(render(i)) for i in range(1, n_frames)),
+               duration=round(1000 / fps), loop=0)
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# How the genetic algorithm improves its tours (ga_evolution.py)
+# ---------------------------------------------------------------------------
+
+BEST, POP = COLORS[0], COLORS[1]              # blue: the best tour of a generation; orange: the whole population
+
+
+def ga_summary(gens, R):
+    """Numbers for titles and the run table, from one GA run's history (ga_tour.optimize)."""
+    best = np.array([g["fitness"][0] for g in gens])
+    improved = [i for i in range(1, len(best)) if best[i] < best[i - 1] - 1e-9]
+    return {"best": best, "mean": np.array([g["fitness"].mean() for g in gens]),
+            "worst": np.array([g["fitness"][-1] for g in gens]),
+            "length": np.array([g["length"][0] for g in gens]), "peaks": np.array([g["peaks"][0] for g in gens]),
+            "mean_peaks": np.array([g["peaks"].mean() for g in gens]),
+            "distinct": np.array([len({tuple(t) for t in g["orders"]}) for g in gens]),
+            "gain": 100 * (1 - best[-1] / best[0]), "improved": improved, "penalty": np.pi * R}
+
+
+def _steps(values):
+    """x and y for a steps-post line in which every generation, the last one included, has a step of width 1."""
+    return np.arange(len(values) + 1), np.append(values, values[-1])
+
+
+def _generation_axis(ax, n_gens):
+    ax.set_xlim(0, n_gens)
+    ax.set_xlabel("Generation", fontsize=9, color=MUTED)
+
+
+def ga_convergence(gens, R, run_label, path):
+    """The objective (fitness) of the best tour, the population mean and the population's range, per generation."""
+    s = ga_summary(gens, R)
+    n_imp = len(s["improved"])
+    title = (f"The best tour improves by {s['gain']:.1f} % over {len(gens) - 1} generations" if s["gain"] > 0
+             else "The first population already holds the best tour this run finds")
+    size = (9, 4.6)
+    fig, ax = _start(size, title,
+                     f"{run_label}.\nLower is better. The GA keeps the better half of each generation, so the best never "
+                     f"gets worse; it improved in {n_imp} of {len(gens) - 1}.",
+                     left=0.1, right=0.97, bottom=0.13, top=0.74)
+    _quiet_axes(ax, "y")
+    x, worst = _steps(s["worst"])
+    ax.fill_between(x, _steps(s["best"])[1], worst, step="post", color=POP, alpha=0.10, lw=0,
+                    label="Population: best to worst")
+    ax.plot(*_steps(s["mean"]), color=POP, lw=2, ls=DASHES, drawstyle="steps-post", label="Population mean")
+    ax.plot(*_steps(s["best"]), color=BEST, lw=2, drawstyle="steps-post", label="Best tour")
+    ax.plot(s["improved"], s["best"][s["improved"]], ls="", marker="o", ms=5.5, color=BEST, mec=SURFACE, mew=1.5,
+            zorder=5, label="Generation where the best improved")
+    _generation_axis(ax, len(gens))
+    ax.set_ylabel("Fitness = length + m(π)·π·R  [m]", fontsize=9, color=MUTED)
+    ax.annotate(f"{s['best'][0]:.0f} m", (0, s["best"][0]), xytext=(2, 5), textcoords="offset points",
+                ha="left", va="bottom", fontsize=8.5, color=INK)
+    ax.annotate(f"{s['best'][-1]:.0f} m", (len(gens), s["best"][-1]), xytext=(0, -6), textcoords="offset points",
+                ha="right", va="top", fontsize=8.5, color=INK)
+    ax.legend(loc="upper left", bbox_to_anchor=(0.0, 1.13), ncol=4, frameon=False, fontsize=8.5, labelcolor=INK,
+              handlelength=2.4, columnspacing=1.4)
+    fig.savefig(path, facecolor=SURFACE)
+    plt.close(fig)
+
+
+def ga_fitness_split(gens, R, run_label, path):
+    """The best tour's fitness split into straight-line length and peak penalty, and its number of peaks m(pi)."""
+    s = ga_summary(gens, R)
+    m0, m1 = int(s["peaks"][0]), int(s["peaks"][-1])
+    saved = s["length"][0] - s["length"][-1]
+    if m1 > m0:
+        title = f"The GA trades radial unimodality for length: {m0} peak to {m1}, {saved:.0f} m shorter"
+    elif saved > 0:
+        title = f"The best tour gets {saved:.0f} m shorter and keeps {m1} peak" + ("s" if m1 != 1 else "")
+    else:
+        title = "The best tour does not change in this run"
+    size = (9, 6.2)
+    fig, (top, bottom) = _start(size, title,
+                                f"{run_label}.\nEach peak (the tour turns back towards the base) costs π·R = "
+                                f"{np.pi * R:.1f} m. Generation 0 has m(π) = 1 (Section 0.8.2).",
+                                left=0.1, right=0.97, bottom=0.09, top=0.8, nrows=2, sharex=True,
+                                gridspec_kw={"height_ratios": [2, 1.15], "hspace": 0.32})
+    for ax in (top, bottom):
+        _quiet_axes(ax, "y")
+    top.set_title("Fitness of the best tour = straight-line length + peak penalty", loc="left", fontsize=9.5,
+                  fontweight="bold", color=INK, pad=6)
+    x, length = _steps(s["length"])
+    top.fill_between(x, length, _steps(s["best"])[1], step="post", color=BEST, alpha=0.18, lw=0,
+                     label="Peak penalty m(π)·π·R")
+    top.plot(*_steps(s["best"]), color=BEST, lw=2, drawstyle="steps-post", label="Fitness")
+    top.plot(x, length, color=BEST, lw=2, ls=DASHES, drawstyle="steps-post", label="Straight-line length")
+    top.margins(y=0.08)
+    top.set_ylabel("Metres", fontsize=9, color=MUTED)
+    top.legend(loc="upper right", ncol=3, frameon=False, fontsize=8.5, labelcolor=INK, handlelength=2.4)
+    bottom.set_title("Number of peaks m(π)", loc="left", fontsize=9.5, fontweight="bold", color=INK, pad=6)
+    bottom.plot(*_steps(s["mean_peaks"]), color=POP, lw=2, ls=DASHES, drawstyle="steps-post", label="Population mean")
+    bottom.plot(*_steps(s["peaks"]), color=BEST, lw=2, drawstyle="steps-post", label="Best tour")
+    bottom.set_ylim(0, max(s["mean_peaks"].max(), s["peaks"].max()) * 1.15 + 0.5)
+    bottom.yaxis.set_major_locator(MaxNLocator(integer=True))
+    bottom.legend(loc="upper left", ncol=2, frameon=False, fontsize=8.5, labelcolor=INK, handlelength=2.4)
+    _generation_axis(bottom, len(gens))
+    fig.savefig(path, facecolor=SURFACE)
+    plt.close(fig)
+
+
+def ga_animation(out, run, run_label, path, fps=8, hold=16, dpi=80):
+    """GIF: every tour of the population (thin grey) and the best tour (blue) on the map, generation by
+    generation, with the fitness and the number of peaks drawn alongside. Tours are drawn as the GA scores
+    them: straight lines between the sensors, through obstacles if need be."""
+    scen, p = out["scenario"], out["params"]
+    gens, ids = run["generations"], np.asarray(run["ids"])
+    s = ga_summary(gens, p["R"])
+    xy, base = scen["xy"], scen["base"]
+    n = len(gens)
+    fig = plt.figure(figsize=(11, 6.6), dpi=dpi, facecolor=SURFACE)
+    fig.text(0.015, 0.975, "How the genetic algorithm improves its tours", fontsize=12, fontweight="bold", color=INK, va="top")
+    fig.text(0.015, 0.935, f"{run_label}. Tours are drawn as the GA scores them: straight lines between sensors.",
+             fontsize=9, color=QUIET, va="top")
+    ax = fig.add_axes([0.015, 0.1, 0.5, 0.74])
+    _map(ax, out)
+    ax.set_facecolor(SURFACE)
+    ax.tick_params(length=0, labelsize=7, colors=MUTED)
+    for side in ax.spines:
+        ax.spines[side].set_visible(False)
+    others = np.setdiff1d(np.arange(len(xy)), ids)
+    if len(others):
+        ax.scatter(*xy[others].T, s=8, color="#c9c8c1", zorder=4)
+    ax.scatter(*xy[ids].T, s=14, color=INK, zorder=6)
+    pts = np.vstack([xy, base[None, :]])
+    lo, hi = pts.min(0) - 4, pts.max(0) + 4
+    ax.set_xlim(lo[0], hi[0])
+    ax.set_ylim(lo[1], hi[1])
+    pop_lines = [ax.plot([], [], color=QUIET, lw=0.7, alpha=0.08, zorder=2)[0] for _ in gens[0]["orders"][1:]]
+    best_line, = ax.plot([], [], color=BEST, lw=1.8, zorder=7)
+    ax.legend(handles=[Line2D([], [], color=BEST, lw=1.8, label="Best tour of the generation"),
+                       Line2D([], [], color=QUIET, lw=0.9, alpha=0.5, label="The other tours of the population"),
+                       Line2D([], [], ls="", marker="o", ms=4, color=INK, label="Sensors of this GA run"),
+                       Line2D([], [], ls="", marker="^", ms=7, color=INK, label="Base station")],
+              loc="upper left", bbox_to_anchor=(0.0, -0.005), ncol=2, frameon=False, fontsize=8, labelcolor=INK)
+
+    top = fig.add_axes([0.6, 0.5, 0.37, 0.3])
+    bottom = fig.add_axes([0.6, 0.12, 0.37, 0.25])
+    for a in (top, bottom):
+        _quiet_axes(a, "y")
+        a.set_xlim(0, n)
+    bottom.yaxis.set_major_locator(MaxNLocator(integer=True))
+    top.set_title("Fitness [m]", loc="left", fontsize=9.5, fontweight="bold", color=INK, pad=6)
+    span = s["mean"].max() - s["best"].min()
+    top.set_ylim(s["best"].min() - 0.08 * span, s["mean"].max() + 0.08 * span)
+    bottom.set_title("Number of peaks m(π)", loc="left", fontsize=9.5, fontweight="bold", color=INK, pad=6)
+    bottom.set_ylim(0, max(s["mean_peaks"].max(), s["peaks"].max()) * 1.15 + 0.5)
+    bottom.set_xlabel("Generation", fontsize=9, color=MUTED)
+    mean_f, = top.plot([], [], color=POP, lw=2, ls=DASHES, drawstyle="steps-post", label="Population mean")
+    best_f, = top.plot([], [], color=BEST, lw=2, drawstyle="steps-post", label="Best tour")
+    dot_f, = top.plot([], [], ls="", marker="o", ms=6, color=BEST, mec=SURFACE, mew=1.5, zorder=5)
+    mean_m, = bottom.plot([], [], color=POP, lw=2, ls=DASHES, drawstyle="steps-post")
+    best_m, = bottom.plot([], [], color=BEST, lw=2, drawstyle="steps-post")
+    top.legend(loc="upper right", frameon=False, fontsize=8, labelcolor=INK, handlelength=2.4)
+    label = fig.text(0.015, 0.89, "", fontsize=10, fontweight="bold", color=INK, va="top")
+
+    def tour_xy(order):
+        return np.vstack([base, xy[order], base]).T
+
+    def update(frame):
+        i = min(frame, n - 1)
+        gen = gens[i]
+        for line, order in zip(pop_lines, gen["orders"][1:]):
+            line.set_data(*tour_xy(order))
+        best_line.set_data(*tour_xy(gen["orders"][0]))
+        mean_f.set_data(*_steps(s["mean"][:i + 1]))
+        best_f.set_data(*_steps(s["best"][:i + 1]))
+        dot_f.set_data([i], [s["best"][i]])
+        mean_m.set_data(*_steps(s["mean_peaks"][:i + 1]))
+        best_m.set_data(*_steps(s["peaks"][:i + 1]))
+        label.set_text(f"Generation {i} of {n - 1}:  best fitness {s['best'][i]:.0f} m = {s['length'][i]:.0f} m"
+                       f" + {int(s['peaks'][i])} × {np.pi * p['R']:.1f} m,  {s['distinct'][i]} different tours")
+        return pop_lines + [best_line, mean_f, best_f, dot_f, mean_m, best_m, label]
+
+    save_gif(fig, update, n + hold, path, fps)
+
+
+def ga_population_animation(gens, R, run_label, path, fps=8, hold=16, dpi=80):
+    """GIF: every tour of the population as a dot, straight-line length across and number of peaks m(pi)
+    up, one frame per generation. Grey diagonals are lines of equal fitness L + m(pi)*pi*R: one more
+    peak is worth pi*R metres of length, so the cloud must move left (or down) to improve."""
+    s = ga_summary(gens, R)
+    n = len(gens)
+    pen = np.pi * R
+    L_all = np.concatenate([g["length"] for g in gens])
+    m_all = np.concatenate([g["peaks"] for g in gens])
+    x0, x1 = L_all.min(), L_all.max()
+    x0, x1 = x0 - 0.04 * (x1 - x0), x1 + 0.04 * (x1 - x0)
+    y1 = m_all.max() + 1
+    fig = plt.figure(figsize=(9, 6), dpi=dpi, facecolor=SURFACE)
+    fig.text(0.02, 0.975, "The population moves towards lower fitness", fontsize=12, fontweight="bold", color=INK, va="top")
+    fig.text(0.02, 0.93, f"{run_label}. Each dot is one of the {len(gens[0]['orders'])} tours, spread a little up and "
+             f"down within each m(π).\nGrey diagonals join tours of equal fitness L + m(π)·π·R: one more peak is "
+             f"worth π·R = {pen:.1f} m of length.", fontsize=9, color=QUIET, va="top")
+    ax = fig.add_axes([0.09, 0.1, 0.88, 0.66])
+    _quiet_axes(ax, None)
+    ax.set_xlim(x0, x1)
+    ax.set_ylim(-0.5, y1)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel("Straight-line length of the tour [m]", fontsize=9, color=MUTED)
+    ax.set_ylabel("Number of peaks m(π)", fontsize=9, color=MUTED)
+    # lines of equal fitness F: m = (F - L) / (pi R)
+    F0, F1 = x0, x1 + y1 * pen
+    step = 10 ** np.floor(np.log10((F1 - F0) / 6))
+    step *= 2 if (F1 - F0) / step > 12 else 1
+    for F in np.arange(np.ceil(F0 / step) * step, F1, step):
+        ax.plot([F + 0.5 * pen, F - y1 * pen], [-0.5, y1], color=GRID, lw=0.8, zorder=1)
+    best_iso, = ax.plot([], [], color=BEST, lw=1.2, ls=DASHES, zorder=2, label="Equal fitness to the best tour")
+    iso_label = ax.text(0, 0, "", fontsize=8, color=INK, ha="left", va="center")
+    trail, = ax.plot([], [], color=BEST, lw=1.2, alpha=0.6, zorder=3, label="Path of the best tour so far")
+    jitter = (np.arange(len(gens[0]["orders"])) % 7 - 3) * 0.07
+    dots = ax.scatter([], [], s=22, color=POP, alpha=0.75, lw=0, zorder=4, label="A tour of the population")
+    best = ax.scatter([], [], s=70, color=BEST, edgecolor=SURFACE, lw=1.8, zorder=5, label="Best tour")
+    ax.legend(loc="upper right", frameon=False, fontsize=8, labelcolor=INK)
+    label = fig.text(0.09, 0.8, "", fontsize=10, fontweight="bold", color=INK, va="bottom")
+
+    def update(frame):
+        i = min(frame, n - 1)
+        g = gens[i]
+        dots.set_offsets(np.column_stack([g["length"][1:], g["peaks"][1:] + jitter[1:]]))
+        best.set_offsets([[g["length"][0], g["peaks"][0]]])
+        F = s["best"][i]
+        best_iso.set_data([F + 0.5 * pen, F - y1 * pen], [-0.5, y1])
+        iso_label.set_position((F - (y1 - 0.7) * pen + 0.012 * (x1 - x0), y1 - 0.7))
+        iso_label.set_text(f"fitness {F:.0f} m")
+        trail.set_data(s["length"][:i + 1], s["peaks"][:i + 1])
+        label.set_text(f"Generation {i} of {n - 1}:  best fitness {F:.0f} m = {s['length'][i]:.0f} m + "
+                       f"{int(s['peaks'][i])} × {pen:.1f} m,  {s['distinct'][i]} different tours")
+        return [dots, best, best_iso, iso_label, trail, label]
+
+    save_gif(fig, update, n + hold, path, fps)
+
+
+def ga_radial_animation(gens, r, R, run_label, path, fps=8, hold=16, dpi=80):
+    """GIF: distance from the base (geodesic, eq. 9) along the tour, sensor by sensor, one frame per
+    generation. Generation 0 is radially unimodal (one hill, Section 0.8.2); every extra hill is a peak
+    that costs pi*R in the fitness."""
+    s = ga_summary(gens, R)
+    n = len(gens)
+    size = len(gens[0]["orders"][0])
+    x = np.arange(size + 2)
+    profile = lambda order: np.concatenate([[0.0], r[order], [0.0]])
+    top = max(r[o].max() for g in gens for o in g["orders"]) * 1.12
+    fig = plt.figure(figsize=(9, 5.4), dpi=dpi, facecolor=SURFACE)
+    fig.text(0.02, 0.975, "Radial unimodality, generation by generation", fontsize=12, fontweight="bold", color=INK, va="top")
+    fig.text(0.02, 0.925, f"{run_label}. Distance from the base of each sensor, in the order the tour visits them.\n"
+             f"Generation 0 has one hill (Section 0.8.2); each extra hill is a peak that costs π·R = "
+             f"{np.pi * R:.1f} m in the fitness.", fontsize=9, color=QUIET, va="top")
+    ax = fig.add_axes([0.09, 0.12, 0.88, 0.62])
+    _quiet_axes(ax, "y")
+    ax.set_xlim(0, size + 1)
+    ax.set_ylim(0, top)
+    ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax.set_xlabel("Position in the tour (0 and the last are the base)", fontsize=9, color=MUTED)
+    ax.set_ylabel("Distance from the base r [m]", fontsize=9, color=MUTED)
+    pop_lines = [ax.plot([], [], color=QUIET, lw=0.7, alpha=0.1, zorder=2)[0] for _ in gens[0]["orders"][1:]]
+    best_line, = ax.plot([], [], color=BEST, lw=2, marker="o", ms=4, zorder=4, label="Best tour")
+    peaks_mark = ax.scatter([], [], s=60, marker="v", color=INK, zorder=5, label="Peak (radial maximum)")
+    ax.legend(handles=[best_line, peaks_mark, Line2D([], [], color=QUIET, lw=0.9, alpha=0.5, label="Other tours of the population")],
+              loc="lower left", bbox_to_anchor=(0.0, 1.0), ncol=3, frameon=False, fontsize=8, labelcolor=INK)
+    label = fig.text(0.09, 0.81, "", fontsize=10, fontweight="bold", color=INK, va="bottom")
+
+    def update(frame):
+        i = min(frame, n - 1)
+        g = gens[i]
+        for line, order in zip(pop_lines, g["orders"][1:]):
+            line.set_data(x, profile(order))
+        d = profile(g["orders"][0])
+        best_line.set_data(x, d)
+        at = np.flatnonzero((d[1:-1] > d[:-2]) & (d[1:-1] > d[2:])) + 1      # the radial maxima counted by ga_tour.peaks
+        peaks_mark.set_offsets(np.column_stack([x[at], d[at] + 0.03 * top]) if len(at) else np.zeros((0, 2)))
+        label.set_text(f"Generation {i} of {n - 1}:  the best tour has m(π) = {int(s['peaks'][i])} "
+                       f"peak{'s' if s['peaks'][i] != 1 else ''},  fitness {s['best'][i]:.0f} m")
+        return pop_lines + [best_line, peaks_mark, label]
+
+    save_gif(fig, update, n + hold, path, fps)

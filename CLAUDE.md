@@ -31,6 +31,10 @@ python planner.py --seed 1 --dubins pdf        # Section 0.13 turn-type rule ins
 python compare_dubins.py                       # both Dubins methods on seeds 1-10; prints the README comparison
 python compare_dubins.py --seeds 1 --jobs 2    # same, on chosen maps
 python compare_dubins.py --figures             # also saves output/compare_*.png; the first seed gives the same-tour figure
+python ga_evolution.py --seed 1                # table of every GA run; for the run that improved most: convergence and fitness-split PNGs, evolution, population and radial GIFs (about 2.5 min)
+python ga_evolution.py --seed 1 --run 0 --no-gif   # another run of the table, PNGs only
+python pipeline_gifs.py --seed 1               # GIFs of the whole algorithm: conflicts, splitting, one sink's refine, pipeline (about 4 min)
+python pipeline_gifs.py --seed 1 --only refine --sink 3   # one of them; --budget/--resolver/--dubins as in planner.py
 python tests/run_tests.py                      # whole suite
 
 # One test: tests are plain functions and run_tests.py has no selector
@@ -44,7 +48,7 @@ python -m pytest tests/run_tests.py -k <name>
 python -m pytest tests/run_tests.py -k "not end_to_end and not same_seed"   # skips the full planner runs
 ```
 
-- On the 2-core codespace the suite takes 4-5 minutes (seven full planner runs) and the 10-map `compare_dubins.py` 10-13 minutes, so run them in the background and not at the same time.
+- On the 2-core codespace the suite takes about 5 minutes (seven full planner runs; 5 min 01 s on 2026-11-12) and the 10-map `compare_dubins.py` 10-13 minutes, so run them in the background and not at the same time.
 - New `test_*` functions in `run_tests.py` are picked up automatically.
 - `output/seed1.png`, `seed1_simple.png`, `seed2.png`, `seed3.png` and `seed3_simple.png` are tracked in git, so plotting those runs dirties the tree. Use `--no-plot` for checks.
 - There is no `.gitignore`: the user had it deleted. `__pycache__/` and GIFs are therefore not ignored, so stage files by name instead of using `git add -A`, and run Python with `PYTHONDONTWRITEBYTECODE=1` so that `__pycache__/` is not created.
@@ -86,6 +90,11 @@ What spans several modules:
 - **Obstacle margins.** Corner-to-corner lines stay outside obstacles inflated by `r_plan` = `r_safe` + R. Lines touching a sensor or the base only need `r_safe` + 0.5 m. Final clearance is measured against the original obstacles and needs `r_safe`.
 - **Curvature.** Dense Dubins paths measure 1.000/R. `trajectory.max_curvature` fits circles through points at least 1 m apart, so sampled frames read slightly higher, and `curvature_tol` = 0.15 allows for that.
 - **Parameters.** Everything is one dict from `config.default_params(**changes)`. `R`, `r_safe` and `r_plan` are recomputed after the changes are applied, so `default_params(R=...)` has no effect; change `wheelbase` or `delta_max` instead.
+- **Recording for the figures.**
+  - `ga_tour.optimize(..., history)`, `planner.plan_routes(..., ga_log)` and `planner.run(..., ga_log)` record every generation of every GA run. Each `ga_log` entry also keeps the tour's path and, for a split group, its `halves`. They feed `ga_evolution.py` and `pipeline_gifs.py`.
+  - Recording must make no random draws, or every result shifts. `test_ga_history_does_not_change_the_result` and `test_plan_routes_log_changes_nothing_and_follows_the_queue` check this.
+  - `animations.split_states` rebuilds the planner's first-in, first-out queue of groups from the log. Change it if the queue in `plan_routes` changes; it asserts when they disagree.
+- **GIFs.** The new GIFs are saved with `plot.save_gif`, which gives all frames one shared palette, so a colour used by only a few pixels keeps its colour, and the files are much smaller. The older `plot.animation` (`planner.py --gif`) still uses matplotlib's writer. In the new GIFs, red (`#d03b3b`) means a problem and green (`#0ca30c`) means fixed, always with a text label.
 - **Determinism.** `run` uses `rng(seed)` for Steps 1-7 and `rng(seed + 1000)` for Steps 8-12, so the resolvers start those steps alike. An extra random draw or a geometry change shifts every result, and the README's tables were measured on seeds 1-10. Re-measure and update them when a change affects them; `compare_dubins.py` regenerates the Dubins comparison.
 
 ## Conventions
@@ -168,6 +177,37 @@ Only Section 0.13 was compared with the code line by line. Where the code is kno
 ## Work log
 
 Newest first.
+
+### 2026-11-12
+
+- **Added six more animations**, at the user's request (ideas 1, 2, 4, 5, 7 and 8 of the list given to the user).
+  - **In `ga_evolution.py`:** `_population.gif` (each tour as a dot, straight-line length against m(π), with lines of equal fitness) and `_radial.gif` (distance from the base along the best tour, peaks marked). They are drawn by `plot.ga_population_animation` and `ga_radial_animation`.
+  - **New `pipeline_gifs.py`, with drawing in new `animations.py`:**
+    - `seed1_conflicts.gif`: planned and after the game, side by side; 63.0 s of conflict over 16 pairs, then 0.
+    - `seed1_splitting.gif`: 29 GA runs; one sink would need 1202 s, and 15 sinks each fit within 80 s.
+    - `seed1_sink8_refine.gif`: straight lines 121 m, waypoints 128 m, Dubins 177 m (+47 %), T = 51.0 s. The default sink is the one with the largest ratio of Dubins length to straight-line length.
+    - `seed1_pipeline.gif`: 242 frames, 36 s; GA, splitting, routes, conflicts, then the game, with K / T_max / L_total / conflict-time tiles. L_total is 2925.6 m planned and 2926.8 m after the one DETOUR.
+  - `planner.run` takes `ga_log`. The log also keeps each tour's path and the halves of each split. Nothing else in the algorithm changed, and seed 1 still gives K = 15, T_max = 79.6 s, L_total = 2927 m.
+  - **New `plot.save_gif`.** A shared palette fixed green dots turning dark in frames where green was rare, and it made the GIFs about 5 times smaller. Runtimes on seed 1: `ga_evolution.py` 2.5 min, `pipeline_gifs.py` 4 min.
+  - **Tests.** Added `test_plan_routes_log_changes_nothing_and_follows_the_queue` (about 50 s) and `test_animation_conflict_count_matches_summary`; all 31 pass. The README has a new section, "Animations of the whole algorithm (seed 1)", and the GA section lists the two new GIFs.
+  - The new outputs in `output/` are untracked. Nothing is committed.
+- **Added `ga_evolution.py`**, at the user's request: three illustrations of how the GA improves, generation by generation.
+  - `ga_tour.optimize` takes an optional `history` list, and `planner.plan_routes` an optional `ga_log`. Both record without any random draws. Drawing is in `plot.py` (`ga_summary`, `ga_convergence`, `ga_fitness_split`, `ga_animation`).
+  - The script plans Steps 1-7 as `planner.run` does and prints a table of every GA run. For one run it saves `output/ga_seed<N>_run<k>_convergence.png`, `_fitness_split.png` and `_evolution.gif`. By default that is the run whose best tour improved most (run 5 on seed 1, 20 sensors, −38.7 %); `--run` picks another.
+  - Run 0, all 98 sensors, makes an unreadable GIF, because a straight-line tour ordered by distance from the base zig-zags in angle. Its two PNGs read well.
+  - The GIF was 4.6 MB at 80 dpi (101 frames, the last held 2 s); with `plot.save_gif`, added later the same day, it is 1.7 MB. The script took about 1 min 45 s on seed 1 with one GIF, or 45 s with `--no-gif`.
+  - The new outputs (`ga_seed1_run5_*`, `ga_seed1_run0_*.png`) are untracked.
+- **Checks.** Added `test_ga_history_does_not_change_the_result`; all 29 tests passed at that point. `planner.py --seed 1` still matches the README row (K = 15, T_max = 79.6 s, L_total = 2927 m, closest 3.16 m). README: a new section "How the GA improves, generation by generation (seed 1)", the run commands, and the file table.
+- **Commit status.** Not committed.
+- **Seed 1's conflict games, measured for further GIF ideas** (no code changed):
+  - There are 6 games, which take the plan from 16 pairs and 63.0 s of risk to none, and repair round 0 is kept.
+  - One game, at departure (frame 1), has 13 players and 8 best-response switches, and its potential falls from 13284 to 1594. The other five have 2 players and one switch each.
+  - Each game record already holds its `moves` and `potential` trace.
+- **Measured how the GA improves, generation by generation**, while answering the user's request for ideas on illustrating it. It was first measured with a scratch copy of `ga_tour.optimize` that made the same random draws and reproduced the real output exactly. `ga_evolution.py` now reproduces these numbers.
+  - `optimize` keeps the better half each generation, so the best fitness never rises. It improves only now and then: in 12 of 100 generations on the first seed 1 run.
+  - On seed 1 the planner makes 29 GA calls. The 14 runs on groups that are later split (9-98 sensors) improve on generation 0 by a median of 8.9 % (at most 38.7 %), and are still improving late (median last improvement at generation 72.5).
+  - The 15 runs that give the final sinks' tours (3-13 sensors) gain nothing over generation 0 in 13 cases. For small groups, the radially unimodal start population already holds the best tour found.
+  - On the 98-sensor run, the best tour's peak count m(π) rises from 1 to 9, and the population shrinks from 50 distinct tours to 2-4 by generation 50. The GA gives up radial unimodality on large groups, because a peak costs only π R ≈ 15.7 m.
 
 ### 2026-11-11
 

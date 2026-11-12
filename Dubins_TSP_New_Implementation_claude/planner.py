@@ -22,23 +22,36 @@ import trajectory
 from config import default_params
 
 
-def plan_routes(scen, geo, p, rng):
+def plan_routes(scen, geo, p, rng, ga_log=None):
     """Steps 1-7: one sink with all sensors; every group whose tour exceeds B is split
-    by the geodesic spectral bisection and both halves are planned again."""
+    by the geodesic spectral bisection and both halves are planned again.
+
+    If ga_log is a list, one entry per GA run is appended to it, in the order of the runs:
+    {"ids", "generations" (see ga_tour.optimize), "order", "path" (the tour's dense polyline),
+    "T", "kept"}, where kept is False for a group that was split; a split group also gets
+    "halves", the two groups it was split into. Recording makes no random draws, so the plan
+    is the same."""
     xy, base, tau = scen["xy"], scen["base"], scen["tau"]
     Ds, r = geo["D"][1:, 1:], geo["D"][0, 1:]
     todo, tours, problems = [np.arange(len(xy))], [], []          # Step 1
     while todo:
         ids = todo.pop(0)
-        order = ga_tour.optimize(ids, xy, base, r, p, rng)       # Step 3: radially unimodal GA
+        history = [] if ga_log is not None else None
+        order = ga_tour.optimize(ids, xy, base, r, p, rng, history)   # Step 3: radially unimodal GA
         tour = trajectory.build(order, geo, scen, p)              # Steps 2, 4: Dubins / geodesic T = T(pi*)
+        if ga_log is not None:
+            ga_log.append({"ids": ids, "generations": history, "order": order, "path": tour["path"],
+                           "T": tour["T"], "kept": tour["T"] <= p["B"] or len(ids) == 1})
         if tour["T"] <= p["B"]:
             tours.append(tour)                                    # Steps 5, 7: accept
         elif len(ids) == 1:
             tours.append(tour)
             problems.append(f"sensor {ids[0]} alone needs T = {tour['T']:.1f} s > B")
         else:
-            todo += list(partition.bisect(ids, xy, base, Ds, r, tau, p))   # Steps 5-7: split, repeat Step 6
+            halves = list(partition.bisect(ids, xy, base, Ds, r, tau, p))   # Steps 5-7: split, repeat Step 6
+            todo += halves
+            if ga_log is not None:
+                ga_log[-1]["halves"] = halves
         if len(tours) + len(todo) > p["K_max"]:
             problems.append(f"more than K_max = {p['K_max']} sinks would be needed")
             break
@@ -103,8 +116,9 @@ def check(result, scen, geo, p, problems):
     }
 
 
-def run(seed, p=None):
-    """Plan one random scenario. Returns {"scenario", "geo", "result", "checks", "times"}."""
+def run(seed, p=None, ga_log=None):
+    """Plan one random scenario. Returns {"scenario", "geo", "result", "checks", "times"}.
+    ga_log: see plan_routes (used by ga_evolution.py and pipeline_gifs.py; it changes nothing)."""
     p = p or default_params()
     rng = np.random.default_rng(seed)
     times = {}
@@ -113,7 +127,7 @@ def run(seed, p=None):
     geo = geodesic.build(scen, p)                                  # Step 2: feasible graph, geodesic costs
     times["graph"] = time.time() - t0
     t0 = time.time()
-    tours, problems = plan_routes(scen, geo, p, rng)               # Steps 1-7
+    tours, problems = plan_routes(scen, geo, p, rng, ga_log)       # Steps 1-7
     times["routes"] = time.time() - t0
     t0 = time.time()
     # Steps 8-12, with their own random stream so that both resolvers start them alike
