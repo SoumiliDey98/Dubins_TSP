@@ -83,7 +83,7 @@ def inflate_figure():
     ax1.plot(*bv.T, "o", ms=2.6, color=PLAN, zorder=5)
     text(ax1, (3, 10), r"$O_k$")
     text(ax1, (15.0, 25.0), r"$r_{\rm plan} = 7$\,m", color=PLAN, ha="left")
-    text(ax1, (15.0, 22.2), r"$r_{\rm safe} + 0.5 = 2.5$\,m", color=TERM, ha="left")
+    text(ax1, (15.0, 22.2), r"$r_{\rm term} = 2.5$\,m", color=TERM, ha="left")
     # the reflex corner: offset lines meet
     text(ax1, (6 + R_PLAN, 6 + R_PLAN), r"reflex corner", (3.0, 3.6), ha="left", fontsize=8, color=CON)
     ax1.annotate("", xy=(6 + R_PLAN + 0.3, 6 + R_PLAN + 0.3), xytext=(6 + R_PLAN + 2.8, 6 + R_PLAN + 3.0),
