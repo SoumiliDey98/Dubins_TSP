@@ -2,12 +2,12 @@
 
     python ga_evolution.py --seed 1              # table of every GA run; figures for the run that improved most
     python ga_evolution.py --seed 1 --run 0      # figures for another run in the table (run 0: all sensors)
-    python ga_evolution.py --seed 1 --no-gif     # only the two PNG figures (the three GIFs take about 2 minutes)
+    python ga_evolution.py --seed 1 --no-gif     # only the two PNG figures (the five GIFs take about 4 minutes)
 
 In Steps 1-7 the planner runs the GA once for each group of sensors: first for all sensors, then for
 each half whenever a group's tour takes longer than the budget B. This script plans the routes exactly
 as planner.py does (same random numbers, so the same groups and tours), records every generation of
-every GA run, prints a table of the runs, and saves five figures for the chosen run (here run 5):
+every GA run, prints a table of the runs, and saves seven figures for the chosen run (here run 5):
 
     output/ga_seed1_run5_convergence.png    fitness of the best tour, population mean and range, per generation
     output/ga_seed1_run5_fitness_split.png  the best tour's fitness split into straight-line length and
@@ -17,6 +17,10 @@ every GA run, prints a table of the runs, and saves five figures for the chosen 
                                             of equal fitness, generation by generation
     output/ga_seed1_run5_radial.gif         distance from the base along the best tour: one hill at generation 0
                                             (radially unimodal), more hills later
+    output/ga_seed1_run5_unimodal.gif       the same on the map: legs coloured by going out (blue) or coming back
+                                            (orange), peaks ringed; generation 0 and the last traced leg by leg
+    output/ga_seed1_run5_unimodal_dubins.gif  the same, with every tour drawn as the Dubins path the sink would
+                                            drive (trajectory.build), and its length and mission time
 
 The GA minimises Fitness(pi) = straight-line length + m(pi)*pi*R (Section 0.8.1). It keeps the better half
 of each generation, so the best fitness never rises. Groups that are split later are usually large, and
@@ -31,6 +35,7 @@ import numpy as np
 import geodesic
 import plot
 import scenario
+import trajectory
 from config import default_params
 from planner import plan_routes
 
@@ -92,7 +97,8 @@ def main():
     name = f"ga_seed{args.seed}_run{k}" + ("_pdf" if args.dubins == "pdf" else "") + \
         ("" if args.budget is None else f"_B{args.budget:g}")
     paths = {kind: os.path.join(folder, f"{name}_{kind}") for kind in
-             ("convergence.png", "fitness_split.png", "evolution.gif", "population.gif", "radial.gif")}
+             ("convergence.png", "fitness_split.png", "evolution.gif", "population.gif", "radial.gif", "unimodal.gif",
+              "unimodal_dubins.gif")}
     plot.ga_convergence(run["generations"], p["R"], label, paths["convergence.png"])
     plot.ga_fitness_split(run["generations"], p["R"], label, paths["fitness_split.png"])
     print(f"\nfigures: {paths['convergence.png']}\n         {paths['fitness_split.png']}")
@@ -100,7 +106,19 @@ def main():
         plot.ga_animation({"scenario": scen, "params": p}, run, label, paths["evolution.gif"])
         plot.ga_population_animation(run["generations"], p["R"], label, paths["population.gif"])
         plot.ga_radial_animation(run["generations"], geo["D"][0, 1:], p["R"], label, paths["radial.gif"])
-        print(f"animations: {paths['evolution.gif']}\n            {paths['population.gif']}\n            {paths['radial.gif']}")
+        plot.ga_unimodal_animation({"scenario": scen, "params": p}, run, geo["D"][0, 1:], label, paths["unimodal.gif"])
+        # the Dubins tour the sink would drive for every best tour shown: generation 0, the improving ones, the last
+        gens = run["generations"]
+        tours, built = {}, {}
+        for g in sorted({0, len(gens) - 1, *plot.ga_summary(gens, p["R"])["improved"]}):
+            order = tuple(gens[g]["orders"][0])
+            if order not in built:
+                built[order] = trajectory.build(list(order), geo, scen, p)
+            tours[g] = built[order]
+        plot.ga_unimodal_animation({"scenario": scen, "params": p}, run, geo["D"][0, 1:], label,
+                                   paths["unimodal_dubins.gif"], tours=tours)
+        print("animations: " + "\n            ".join(paths[k] for k in ("evolution.gif", "population.gif", "radial.gif",
+                                                                     "unimodal.gif", "unimodal_dubins.gif")))
 
 
 if __name__ == "__main__":

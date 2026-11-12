@@ -1,7 +1,8 @@
 """Animations of the whole algorithm (pipeline_gifs.py). Each one shows something getting better:
 
     conflict_animation   the sinks moving as planned and after the conflict game, side by side (Steps 8-10)
-    splitting_animation  groups split until every tour fits the budget B (Steps 1-7, Section 0.9)
+    splitting_animation  groups split until every tour fits the budget B, one step per GA run (Steps 1-7, Section 0.9)
+    partition_animation  the same splitting, one step per split: 1 sink, then 2, then 3, ... with every group's tour
     refine_animation     one sink's tour: the GA's straight lines, the waypoints around the obstacles,
                          and the Dubins path it drives (Sections 0.8, 0.13 and eq. 17)
     pipeline_animation   all of it in one GIF, chapter by chapter, with the objectives updating
@@ -20,7 +21,8 @@ from scipy.spatial import ConvexHull
 import conflict_game as cg
 import ga_tour
 import trajectory
-from plot import BEST, DASHES, INK, MUTED, POP, QUIET, SURFACE, _map, _quiet_axes, _style, ga_summary, save_gif
+from plot import (BEST, DASHES, INK, MUTED, POP, QUIET, SURFACE, _map, _quiet_axes, _style, ga_summary,
+                  save_gif, stop_indices)
 
 CRITICAL, GOOD = "#d03b3b", "#0ca30c"        # status colours; always shown with a label, never alone
 PENDING = "#c9c8c1"                          # sensors of groups not planned yet
@@ -286,18 +288,123 @@ def splitting_animation(out, log, path, fps=3, dpi=80, hold=8):
 
 
 # ---------------------------------------------------------------------------
+# 2b. The partition, one sink more at every step
+# ---------------------------------------------------------------------------
+
+def partition_states(log):
+    """The partition of the sensors after each split, from one group to the final sinks.
+
+    Returns (states, splits, slot). states[k] lists the k + 1 groups of the partition, each as the
+    index of the GA run that planned it (every group in the queue gets one). splits[k] is the run whose
+    group is split to go from states[k] to states[k + 1]. slot[j] is a colour number that a group keeps
+    until it is split: its first half keeps it and its second half takes the next free one."""
+    run_of = {frozenset(np.asarray(r["ids"]).tolist()): j for j, r in enumerate(log)}
+    groups, slot, free = [0], {0: 0}, 1
+    states, splits = [[0]], []
+    for j, r in enumerate(log):
+        if r["kept"]:
+            continue
+        halves = [run_of.get(frozenset(np.asarray(h).tolist())) for h in r.get("halves", [])]
+        if len(halves) != 2 or None in halves:
+            break                                       # the planner stopped before planning both halves (K_max)
+        i = groups.index(j)
+        groups[i:i + 1] = halves
+        slot[halves[0]], slot[halves[1]] = slot[j], free
+        free += 1
+        splits.append(j)
+        states.append(list(groups))
+    return states, splits, slot
+
+
+def partition_animation(out, log, path, fps=2, dpi=80, hold=6):
+    """The partition growing one sink at a time: 1 sink, then 2, then 3, ... Every group is drawn with
+    the Dubins tour its GA run gives it, in a colour it keeps until it is split; beside the map, each
+    group's tour time against B. The group that is split next is outlined in red."""
+    scen, p = out["scenario"], out["params"]
+    xy, B = scen["xy"], p["B"]
+    states, splits, slot = partition_states(log)
+    lims = _limits(out, [r["path"] for r in log])
+    fig = plt.figure(figsize=(11, 6.6), dpi=dpi, facecolor=SURFACE)
+    _header(fig, "Partitioning: one sink, then two, then three, until every tour fits the budget",
+            f"Each group's tour is the Dubins tour its own GA run gives it. A group whose tour takes longer than "
+            f"B = {B:g} s is split in two (Section 0.9).")
+    ax = fig.add_axes([0.045, 0.05, 0.48, 0.79])
+    chart = fig.add_axes([0.6, 0.42, 0.37, 0.38])
+    mark, status = _status_line(fig, 0.045, 0.865)
+    tiles = _tiles(fig, 0.56, 0.25, ("Sinks K", "Longest T_max", "Total L_total", "Tours over B"))
+    fig.text(0.56, 0.09, "Bars use the colours of the map. There are only eight colours, so from the\n"
+             "ninth group on they repeat, with dashed tours and hatched bars.", fontsize=8, color=QUIET, va="bottom")
+    frames = []
+    for k in range(len(states)):
+        frames += [(k, False)] * 2
+        if k < len(splits):
+            frames += [(k, True)] * 2
+    frames += [(len(states) - 1, False)] * hold
+    Tmax_all = max(r["T"] for r in log)
+
+    def update(frame):
+        k, highlight = frames[min(frame, len(frames) - 1)]
+        groups = states[k]
+        _draw_map(ax, out, lims)
+        for j in groups:
+            color, ls = _style(slot[j])
+            ax.plot(*np.asarray(log[j]["path"]).T, color=color, ls=ls, lw=1.1, zorder=3)
+            ax.scatter(*xy[log[j]["ids"]].T, s=13, color=color, zorder=5)
+        if highlight:
+            j = splits[k]
+            _hull(ax, xy[log[j]["ids"]], color=CRITICAL, lw=1.8, ls=DASHES, zorder=6)
+        # tour time of every group against B
+        chart.cla()
+        _quiet_axes(chart, "y")
+        chart.set_yscale("log")
+        chart.set_ylim(min(min(r["T"] for r in log), B) / 1.5, Tmax_all * 1.6)
+        chart.set_xlim(-0.6, max(len(s) for s in states) - 0.4)
+        y0 = chart.get_ylim()[0]
+        for i, j in enumerate(groups):
+            color = _style(slot[j])[0]
+            hatch = "////" if slot[j] >= 8 else None
+            chart.bar([i], [log[j]["T"] - y0], bottom=y0, width=0.62, color=color, hatch=hatch, edgecolor=SURFACE,
+                      lw=0, zorder=3)
+            if highlight and j == splits[k]:
+                chart.text(i, log[j]["T"] * 1.12, "split\nnext", fontsize=7.5, color=INK, ha="center", va="bottom")
+        chart.axhline(B, color=INK, lw=1, ls=DASHES, zorder=4)
+        chart.text(max(len(s) for s in states) - 0.5, B * 1.06, f"B = {B:g} s", fontsize=8, color=INK, ha="right",
+                   va="bottom")
+        chart.set_xticks(range(len(groups)), [str(i + 1) for i in range(len(groups))], fontsize=7)
+        chart.set_xlabel("Group", fontsize=8.5, color=MUTED)
+        chart.set_ylabel("Tour time T [s], log scale", fontsize=8.5, color=MUTED)
+        chart.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
+        chart.yaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+        Ts = [log[j]["T"] for j in groups]
+        over = sum(t > B for t in Ts)
+        if highlight:
+            j = splits[k]
+            status.set_text(f"{len(groups)} sink{'s' if len(groups) > 1 else ''}: the group of {len(log[j]['ids'])} "
+                            f"sensors needs T = {log[j]['T']:.0f} s > B = {B:g} s, so it is split in two")
+            mark.set_color(CRITICAL)
+        elif over:
+            status.set_text(f"{len(groups)} sink{'s' if len(groups) > 1 else ''}: {over} tour{'s' if over > 1 else ''} "
+                            f"still longer than B = {B:g} s")
+            mark.set_color(CRITICAL)
+        else:
+            status.set_text(f"{len(groups)} sinks: every tour fits within B = {B:g} s (longest {max(Ts):.1f} s)")
+            mark.set_color(GOOD)
+        for tile, v in zip(tiles, (str(len(groups)), f"{max(Ts):.1f} s", f"{sum(log[j]['L'] for j in groups):.0f} m",
+                                   str(over))):
+            tile.set_text(v)
+        return []
+
+    _save(fig, update, len(frames), path, fps)
+    return states
+
+
+# ---------------------------------------------------------------------------
 # 7. From the GA's straight lines to the path the sink drives
 # ---------------------------------------------------------------------------
 
 def _stops_in(path, stops, start=0):
     """Indices in the polyline `path` where it passes the stops, in order (base, sensors, base)."""
-    idx, i = [], start
-    for s in stops:
-        d = np.hypot(*(path[i:] - s).T)
-        hit = np.flatnonzero(d < 1e-6)
-        i = i + (int(hit[0]) if len(hit) else int(np.argmin(d)))
-        idx.append(i)
-    return idx
+    return stop_indices(path, stops, start)
 
 
 def _resample_legs(path, idx, m):
@@ -408,9 +515,8 @@ def refine_animation(out, k, path, fps=12, dpi=80):
 # 8. The whole pipeline
 # ---------------------------------------------------------------------------
 
-def _tiles(fig, x, y):
-    """Four score tiles: K, T_max, L_total and the time in conflict."""
-    names = ["Sinks K", "Longest T_max", "Total L_total", "In conflict"]
+def _tiles(fig, x, y, names=("Sinks K", "Longest T_max", "Total L_total", "In conflict")):
+    """Four score tiles with the given names (by default K, T_max, L_total and the time in conflict)."""
     values = []
     for i, name in enumerate(names):
         xi = x + 0.105 * i

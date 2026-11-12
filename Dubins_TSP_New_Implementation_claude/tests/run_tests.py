@@ -273,6 +273,12 @@ def test_plan_routes_log_changes_nothing_and_follows_the_queue():
             halves = np.concatenate(r["halves"]).tolist()
             assert sorted(halves) == sorted(np.asarray(r["ids"]).tolist())
     assert len(animations.split_states(log)) == len(log)         # raises if the log does not follow the queue
+    states, splits, slot = animations.partition_states(log)      # 1 sink, then 2, then 3, ...
+    assert [len(s) for s in states] == list(range(1, len(plain) + 1)) and len(splits) == len(states) - 1
+    for s in states:                                              # every step is a partition of all the sensors
+        assert sorted(np.concatenate([log[j]["ids"] for j in s]).tolist()) == list(range(len(sub["xy"])))
+    assert sorted(log[j]["order"] for j in states[-1]) == sorted(t["order"] for t in plain)
+    assert len({slot[j] for j in states[-1]}) == len(states[-1])  # every final group has its own colour number
 
 
 def test_animation_conflict_count_matches_summary():

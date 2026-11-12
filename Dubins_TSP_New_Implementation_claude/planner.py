@@ -28,7 +28,7 @@ def plan_routes(scen, geo, p, rng, ga_log=None):
 
     If ga_log is a list, one entry per GA run is appended to it, in the order of the runs:
     {"ids", "generations" (see ga_tour.optimize), "order", "path" (the tour's dense polyline),
-    "T", "kept"}, where kept is False for a group that was split; a split group also gets
+    "L", "T", "kept"}, where kept is False for a group that was split; a split group also gets
     "halves", the two groups it was split into. Recording makes no random draws, so the plan
     is the same."""
     xy, base, tau = scen["xy"], scen["base"], scen["tau"]
@@ -41,7 +41,7 @@ def plan_routes(scen, geo, p, rng, ga_log=None):
         tour = trajectory.build(order, geo, scen, p)              # Steps 2, 4: Dubins / geodesic T = T(pi*)
         if ga_log is not None:
             ga_log.append({"ids": ids, "generations": history, "order": order, "path": tour["path"],
-                           "T": tour["T"], "kept": tour["T"] <= p["B"] or len(ids) == 1})
+                           "L": tour["L"], "T": tour["T"], "kept": tour["T"] <= p["B"] or len(ids) == 1})
         if tour["T"] <= p["B"]:
             tours.append(tour)                                    # Steps 5, 7: accept
         elif len(ids) == 1:

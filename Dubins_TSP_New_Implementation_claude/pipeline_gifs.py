@@ -1,7 +1,7 @@
 """Animations that show the whole algorithm improving the plan (Steps 1-12 of Section 0.11).
 
-    python pipeline_gifs.py --seed 1                       # all four GIFs (about 4 minutes)
-    python pipeline_gifs.py --seed 1 --only conflicts      # one or more of: conflicts splitting refine pipeline
+    python pipeline_gifs.py --seed 1                       # all five GIFs (about 4.5 minutes)
+    python pipeline_gifs.py --seed 1 --only partition      # one or more of: conflicts splitting partition refine pipeline
     python pipeline_gifs.py --seed 1 --only refine --sink 3
 
 The map is planned once, exactly as planner.py does (same random numbers), with every GA run recorded.
@@ -11,6 +11,9 @@ Then, in output/:
                           join two sinks closer than d_safe (eq. 20); the time in conflict so far is counted
     seed1_splitting.gif   one step per GA run: a group's tour is kept (T <= B) or split in two (Section 0.9),
                           until every tour fits the budget; beside it, the tour time of every run against B
+    seed1_partition.gif   the same splitting, one step per split: 1 sink, then 2, then 3, ... Every group is
+                          drawn with its Dubins tour, beside a bar of its tour time against B; the group that
+                          is split next is outlined in red
     seed1_sink8_refine.gif  one sink's tour: the GA's straight lines, the waypoints around the obstacles and
                           the Dubins path it drives, with their lengths (by default the sink whose Dubins path
                           is longest compared with its straight lines)
@@ -26,7 +29,7 @@ import animations
 from config import default_params
 from planner import run
 
-KINDS = ("conflicts", "splitting", "refine", "pipeline")
+KINDS = ("conflicts", "splitting", "partition", "refine", "pipeline")
 
 
 def main():
@@ -61,6 +64,9 @@ def main():
         elif kind == "splitting":
             path = os.path.join(folder, f"{name}_splitting.gif")
             animations.splitting_animation(out, log, path)
+        elif kind == "partition":
+            path = os.path.join(folder, f"{name}_partition.gif")
+            animations.partition_animation(out, log, path)
         elif kind == "refine":
             k = animations.pick_refine_sink(out) if args.sink is None else args.sink
             if not 0 <= k < len(out["result"]["tours"]):

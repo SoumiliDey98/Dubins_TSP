@@ -604,3 +604,198 @@ def ga_radial_animation(gens, r, R, run_label, path, fps=8, hold=16, dpi=80):
         return pop_lines + [best_line, peaks_mark, label]
 
     save_gif(fig, update, n + hold, path, fps)
+
+def stop_indices(path, stops, start=0):
+    """Indices in the polyline `path` where it passes the stops, in order (base, sensors, base)."""
+    idx, i = [], start
+    for stop in stops:
+        d = np.hypot(*(path[i:] - stop).T)
+        hit = np.flatnonzero(d < 1e-6)
+        i = i + (int(hit[0]) if len(hit) else int(np.argmin(d)))
+        idx.append(i)
+    return idx
+
+
+def ga_unimodal_animation(out, run, r, run_label, path, fps=6, dpi=80, tours=None):
+    """GIF on the map: how the best tour of one GA run changes from radially unimodal (generation 0)
+    to its final shape. Each leg is an arrow, blue when it moves away from the base (the distance r of
+    eq. 9 grows) and orange when it comes back (r shrinks). A ringed sensor is a peak: there the tour
+    turns back towards the base. Generation 0 and the last generation are traced leg by leg; in between,
+    every generation that improved the best tour is shown. Tours are straight lines, as the GA scores them.
+
+    tours: optional {generation: trajectory.build result} for every generation drawn (0, the improving
+    ones and the last). Then each leg is drawn along the Dubins path the sink would drive around the
+    obstacles, and the tiles and captions add its length and mission time."""
+    from matplotlib.patches import Circle
+    scen, p = out["scenario"], out["params"]
+    xy, base = scen["xy"], scen["base"]
+    gens, ids = run["generations"], np.asarray(run["ids"])
+    s = ga_summary(gens, p["R"])
+    pen = np.pi * p["R"]
+    OUT, IN = COLORS[0], COLORS[1]
+    last = len(gens) - 1
+
+    def shape(order):
+        stops = np.vstack([base, xy[order], base])
+        d = np.concatenate([[0.0], r[order], [0.0]])
+        up = d[1:] > d[:-1]                                                # per leg: moving away from the base?
+        peaks = np.flatnonzero((d[1:-1] > d[:-2]) & (d[1:-1] > d[2:])) + 1  # as counted by ga_tour.peaks
+        return stops, d, up, peaks
+
+    first, final = gens[0]["orders"][0], gens[last]["orders"][0]
+    n_legs = len(first) + 1
+    steps = [0] + list(s["improved"])
+    dub = (lambda g: tours[g]["L"]) if tours else None
+    ups = sum(dub(b) > dub(a) + 1e-9 for a, b in zip(steps[:-1], steps[1:])) if tours else 0
+    unimodal = (f"Generation 0: radially unimodal. The tour only goes out (blue) until its farthest sensor, "
+                f"turns back once (1 peak), then only comes back (orange).")
+    frames = [("intro", 0, 0, "The sensors of this group, in grey rings of distance from the base.")] * 4
+    for k in range(1, n_legs + 1):
+        up = shape(first)[2][k - 1]
+        frames += [("trace", 0, k, f"Generation 0, leg {k} of {n_legs}: "
+                    + ("going out, away from the base" if up else "coming back towards the base"))] * 2
+    frames += [("show", 0, n_legs, unimodal)] * 10
+    for prev, g in zip(steps[:-1], steps[1:]):
+        m = int(s["peaks"][g])
+        text = (f"Generation {g}: the GA found a better tour with {m} peak{'s' if m != 1 else ''}, "
+                f"{s['length'][0] - s['length'][g]:.0f} m shorter in straight lines than generation 0.")
+        if tours:
+            change = dub(g) - dub(prev)
+            text += (f"\nIts Dubins path is {dub(g):.0f} m, {abs(change):.0f} m "
+                     f"{'longer' if change > 0 else 'shorter'} than the previous best tour's.")
+        frames += [("show", g, n_legs, text)] * 5
+    for k in range(1, n_legs + 1):
+        up = shape(final)[2][k - 1]
+        frames += [("trace", last, k, f"Generation {last}, leg {k} of {n_legs}: "
+                    + ("going out, away from the base" if up else "coming back towards the base"))] * 2
+    m1 = int(s["peaks"][last])
+    if tours:
+        compare = (f"Generation 0 (grey, dashed) against generation {last}: {int(s['peaks'][0])} peak to {m1}; Dubins path "
+                   f"{dub(0):.0f} \u2192 {dub(last):.0f} m, T {tours[0]['T']:.0f} \u2192 {tours[last]['T']:.0f} s.\n"
+                   f"The GA scores straight lines, so the Dubins path got longer in {ups} of its {len(steps) - 1} "
+                   f"improving steps.")
+    else:
+        compare = (f"Generation 0 (grey, dashed) against generation {last}: {int(s['peaks'][0])} peak to {m1}. "
+                   f"Each peak costs {pen:.1f} m, but the tour is {s['length'][0] - s['length'][last]:.0f} m shorter.")
+    frames += [("compare", last, n_legs, compare)] * 20
+
+    fig = plt.figure(figsize=(11, 6.8), dpi=dpi, facecolor=SURFACE)
+    fig.text(0.015, 0.975, "From a radially unimodal tour to the GA's best tour" + (", as Dubins paths" if tours else ""),
+             fontsize=12, fontweight="bold", color=INK, va="top")
+    fig.text(0.015, 0.935, f"{run_label}. " + ("Each tour is the Dubins path the sink would drive around the obstacles "
+                                                "(trajectory.build); the GA itself scores straight lines." if tours else
+                                                "Tours are drawn as the GA scores them: straight lines between sensors."),
+             fontsize=9, color=QUIET, va="top")
+    caption = fig.text(0.015, 0.85, "", fontsize=10, fontweight="bold", color=INK, va="bottom")
+    ax = fig.add_axes([0.045, 0.03, 0.5, 0.79])
+    prof = fig.add_axes([0.62, 0.1, 0.35, 0.2])
+    fig.legend(handles=[Line2D([], [], color=OUT, lw=2.2, label="Moving away from the base (r grows)"),
+                        Line2D([], [], color=IN, lw=2.2, label="Coming back towards the base (r shrinks)"),
+                        Line2D([], [], ls="", marker="o", ms=11, mfc="none", mec=INK, mew=1.8,
+                               label="Peak: the tour turns back towards the base"),
+                        Line2D([], [], color=GRID, lw=1.2, label="Straight-line distance from the base, every 20 m")],
+               loc="upper left", bbox_to_anchor=(0.6, 0.83), frameon=False, fontsize=8.5, labelcolor=INK)
+    tiles = []
+    names = ("Peaks m(π)", "Straight lines", "Dubins path", "Mission time T") if tours else \
+        ("Peaks m(π)", "Straight-line length", "Fitness")
+    gap = 0.09 if tours else 0.12
+    for i, name in enumerate(names):
+        fig.text(0.62 + gap * i, 0.55, name, fontsize=8, color=QUIET, va="bottom")
+        tiles.append(fig.text(0.62 + gap * i, 0.54, "", fontsize=13, fontweight="bold", color=INK, va="top"))
+    fig.text(0.62, 0.43, f"Fitness = straight-line length + m(π) × π·R, with π·R = {pen:.1f} m.\n"
+             "r is measured around the obstacles (eq. 9).", fontsize=8.5, color=QUIET, va="top")
+    others = np.setdiff1d(np.arange(len(xy)), ids)
+    pts = np.vstack([xy, base[None, :]] + ([np.asarray(t["path"]) for t in tours.values()] if tours else []))
+    lo, hi = pts.min(0) - 4, pts.max(0) + 4
+    reach = np.hypot(*(np.vstack([lo, hi, [lo[0], hi[1]], [hi[0], lo[1]]]) - base).T).max()
+    top = max(r[ids].max(), 1.0) * 1.15
+
+    legs_cache = {}
+
+    def dubins_legs(g, stops):
+        """The Dubins path of generation g's best tour, cut at the sensors into one piece per leg."""
+        if g not in legs_cache:
+            dense = np.asarray(tours[g]["path"])
+            idx = stop_indices(dense, stops)
+            legs_cache[g] = [dense[a:b + 1] for a, b in zip(idx[:-1], idx[1:])]
+        return legs_cache[g]
+
+    def arrow_along(seg, color):
+        """A line along seg with an arrowhead at its end."""
+        ax.plot(seg[:, 0], seg[:, 1], color=color, lw=2.0, zorder=5, solid_capstyle="round")
+        back = np.cumsum(np.hypot(*np.diff(seg[::-1], axis=0).T))
+        j = len(seg) - 2 - int(np.searchsorted(back, 2.5))
+        ax.annotate("", xy=tuple(seg[-1]), xytext=tuple(seg[max(j, 0)]), zorder=5,
+                    arrowprops=dict(arrowstyle="-|>", color=color, lw=2.0, mutation_scale=11, shrinkA=0, shrinkB=0))
+
+    def draw_tour(order, k, faint=False, g=None):
+        stops, d, up, peaks = shape(order)
+        if tours and faint:
+            dense = np.asarray(tours[g]["path"])
+            ax.plot(dense[:, 0], dense[:, 1], color=QUIET, lw=1.2, ls=DASHES, alpha=0.6, zorder=3)
+        for i in range(k if not (tours and faint) else 0):
+            a, b = stops[i], stops[i + 1]
+            if tours:
+                seg = dubins_legs(g, stops)[i]
+                if len(seg) >= 2 and np.hypot(*(seg[-1] - seg[0])) + np.hypot(*np.diff(seg, axis=0).T).sum() > 1e-9:
+                    arrow_along(seg, OUT if up[i] else IN)
+            elif faint:
+                ax.plot([a[0], b[0]], [a[1], b[1]], color=QUIET, lw=1.2, ls=DASHES, alpha=0.6, zorder=3)
+            else:
+                ax.annotate("", xy=tuple(b), xytext=tuple(a), zorder=5,
+                            arrowprops=dict(arrowstyle="-|>", color=OUT if up[i] else IN, lw=2.0, mutation_scale=11,
+                                            shrinkA=3, shrinkB=4))
+        if not faint:
+            for i in range(1, min(k + 1, len(stops) - 1)):
+                ax.text(stops[i][0] + 1.6, stops[i][1] + 1.6, str(i), fontsize=7, color=INK, zorder=7)
+            for i in peaks[peaks <= k]:
+                ax.scatter(*stops[i], s=200, facecolor="none", edgecolor=INK, lw=1.8, zorder=6)
+        return d, up, peaks
+
+    def update(frame):
+        kind, g, k, text = frames[min(frame, len(frames) - 1)]
+        ax.cla()
+        _map(ax, out)
+        ax.set_facecolor(SURFACE)
+        ax.tick_params(length=0, labelsize=7, colors=MUTED)
+        for side in ax.spines:
+            ax.spines[side].set_visible(False)
+        for rad in np.arange(20, reach, 20):
+            ax.add_patch(Circle(tuple(base), rad, fill=False, color=GRID, lw=1.0, zorder=1))
+            ax.text(base[0] + rad * 0.707, base[1] + rad * 0.707, f"{rad:.0f} m", fontsize=6.5, color=MUTED, zorder=1)
+        ax.set_xlim(lo[0], hi[0])
+        ax.set_ylim(lo[1], hi[1])
+        if len(others):
+            ax.scatter(*xy[others].T, s=7, color="#d6d5cf", zorder=2)
+        ax.scatter(*xy[ids].T, s=16, color=INK, zorder=4)
+        order = gens[g]["orders"][0]
+        if kind == "compare":
+            draw_tour(first, n_legs, faint=True, g=0)
+        d, up, peaks = draw_tour(order, k, g=g) if kind != "intro" else shape(order)[1:]
+        caption.set_text(text)
+        shown = peaks[peaks <= k] if kind != "intro" else []
+        whole = kind not in ("intro", "trace") or k == n_legs
+        tiles[0].set_text(f"{len(shown)}" if kind == "trace" else (f"{int(s['peaks'][g])}" if kind != "intro" else "—"))
+        tiles[1].set_text(f"{s['length'][g]:.0f} m" if whole else "—")
+        if tours:
+            tiles[2].set_text(f"{tours[g]['L']:.0f} m" if whole else "—")
+            tiles[3].set_text(f"{tours[g]['T']:.0f} s" if whole else "—")
+        else:
+            tiles[2].set_text(f"{s['best'][g]:.0f} m" if whole else "—")
+        # the same tour as distance from the base, leg by leg, in the same colours
+        prof.cla()
+        _quiet_axes(prof, "y")
+        prof.set_xlim(0, n_legs)
+        prof.set_ylim(0, top)
+        prof.set_title("The same tour: distance r from the base, sensor by sensor", loc="left", fontsize=8.5,
+                       color=INK, pad=4)
+        prof.set_xlabel("Visit number (0 and the last are the base)", fontsize=8, color=MUTED)
+        prof.xaxis.set_major_locator(MaxNLocator(integer=True))
+        if kind != "intro":
+            for i in range(k):
+                prof.plot([i, i + 1], [d[i], d[i + 1]], color=OUT if up[i] else IN, lw=2, zorder=3)
+            for i in shown:
+                prof.scatter([i], [d[i]], s=70, facecolor="none", edgecolor=INK, lw=1.5, zorder=4)
+        return []
+
+    save_gif(fig, update, len(frames), path, fps)

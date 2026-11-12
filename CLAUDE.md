@@ -31,9 +31,9 @@ python planner.py --seed 1 --dubins pdf        # Section 0.13 turn-type rule ins
 python compare_dubins.py                       # both Dubins methods on seeds 1-10; prints the README comparison
 python compare_dubins.py --seeds 1 --jobs 2    # same, on chosen maps
 python compare_dubins.py --figures             # also saves output/compare_*.png; the first seed gives the same-tour figure
-python ga_evolution.py --seed 1                # table of every GA run; for the run that improved most: convergence and fitness-split PNGs, evolution, population and radial GIFs (about 2.5 min)
+python ga_evolution.py --seed 1                # table of every GA run; for the run that improved most: convergence and fitness-split PNGs, evolution, population, radial, unimodal and unimodal-Dubins GIFs (about 4.5 min)
 python ga_evolution.py --seed 1 --run 0 --no-gif   # another run of the table, PNGs only
-python pipeline_gifs.py --seed 1               # GIFs of the whole algorithm: conflicts, splitting, one sink's refine, pipeline (about 4 min)
+python pipeline_gifs.py --seed 1               # GIFs of the whole algorithm: conflicts, splitting, partition (1, 2, 3 ... sinks), one sink's refine, pipeline (about 4.5 min)
 python pipeline_gifs.py --seed 1 --only refine --sink 3   # one of them; --budget/--resolver/--dubins as in planner.py
 python tests/run_tests.py                      # whole suite
 
@@ -91,9 +91,9 @@ What spans several modules:
 - **Curvature.** Dense Dubins paths measure 1.000/R. `trajectory.max_curvature` fits circles through points at least 1 m apart, so sampled frames read slightly higher, and `curvature_tol` = 0.15 allows for that.
 - **Parameters.** Everything is one dict from `config.default_params(**changes)`. `R`, `r_safe` and `r_plan` are recomputed after the changes are applied, so `default_params(R=...)` has no effect; change `wheelbase` or `delta_max` instead.
 - **Recording for the figures.**
-  - `ga_tour.optimize(..., history)`, `planner.plan_routes(..., ga_log)` and `planner.run(..., ga_log)` record every generation of every GA run. Each `ga_log` entry also keeps the tour's path and, for a split group, its `halves`. They feed `ga_evolution.py` and `pipeline_gifs.py`.
+  - `ga_tour.optimize(..., history)`, `planner.plan_routes(..., ga_log)` and `planner.run(..., ga_log)` record every generation of every GA run. Each `ga_log` entry also keeps the tour's path and length `L` and, for a split group, its `halves`. They feed `ga_evolution.py` and `pipeline_gifs.py`.
   - Recording must make no random draws, or every result shifts. `test_ga_history_does_not_change_the_result` and `test_plan_routes_log_changes_nothing_and_follows_the_queue` check this.
-  - `animations.split_states` rebuilds the planner's first-in, first-out queue of groups from the log. Change it if the queue in `plan_routes` changes; it asserts when they disagree.
+  - `animations.split_states` rebuilds the planner's first-in, first-out queue of groups from the log, and `animations.partition_states` rebuilds the partition after each split (1, 2, ... K groups). Change them if the queue in `plan_routes` changes; `split_states` asserts when they disagree.
 - **GIFs.** The new GIFs are saved with `plot.save_gif`, which gives all frames one shared palette, so a colour used by only a few pixels keeps its colour, and the files are much smaller. The older `plot.animation` (`planner.py --gif`) still uses matplotlib's writer. In the new GIFs, red (`#d03b3b`) means a problem and green (`#0ca30c`) means fixed, always with a text label.
 - **Determinism.** `run` uses `rng(seed)` for Steps 1-7 and `rng(seed + 1000)` for Steps 8-12, so the resolvers start those steps alike. An extra random draw or a geometry change shifts every result, and the README's tables were measured on seeds 1-10. Re-measure and update them when a change affects them; `compare_dubins.py` regenerates the Dubins comparison.
 
@@ -180,6 +180,19 @@ Newest first.
 
 ### 2026-11-12
 
+- **Added `ga_seed1_run5_unimodal_dubins.gif`**, at the user's request: the unimodal animation with each tour drawn as the Dubins path from `trajectory.build`.
+  - `ga_evolution.py` builds one tour for each best order shown (17 on run 5, about 1 s each). `plot.ga_unimodal_animation(..., tours=...)` draws them and adds tiles for the Dubins length and T.
+  - Measured on run 5: the Dubins length falls from 1529 m to 890 m, and T from 371.2 to 243.5 s, which equals the log's T for run 5. But in 5 of the 16 improving steps the Dubins path got longer (generations 3, 14, 37, 39 and 60), because the GA scores straight lines.
+  - `plot.stop_indices` is now shared, and `animations._stops_in` calls it. No algorithm code changed, and the README is updated.
+- **Added `ga_seed1_run5_unimodal.gif`**, at the user's request. The user found the radial-profile graph hard to follow, so this shows on the map how a radially unimodal tour becomes the GA's best tour with 5 peaks. It is drawn by `plot.ga_unimodal_animation` and is the sixth output of `ga_evolution.py`.
+  - Legs are arrows, blue going out and orange coming back (by the geodesic r), peaks are ringed, and faint rings mark straight-line distance every 20 m.
+  - Generation 0 and generation 100 are traced leg by leg, every improving generation is shown in between, and the GIF ends on a comparison. On run 5, the penalty for 1 → 5 peaks is +63 m, and the straight-line length falls from 1341 to 753 m, so the fitness falls from 1357 to 832 m. The GIF is 33 s long and 0.4 MB.
+  - No algorithm code changed. The README describes the new GIF, and nothing is committed.
+- **Added `seed1_partition.gif`**, at the user's request: the partition growing by one sink per split, 1, 2, 3, ... 15. It is `animations.partition_animation`, run with `pipeline_gifs.py --only partition`.
+  - Every group is drawn with the Dubins tour its own GA run gives it, beside a bar of its tour time against B, and the group split next is outlined in red. Each group keeps its colour until it is split.
+  - On seed 1, the longest tour falls from 1202 s to 79.6 s and the total length from 4506 m to 2926 m. The GIF is 32 s long and 0.3 MB.
+  - The `ga_log` entries now also keep `L`. `test_plan_routes_log_changes_nothing_and_follows_the_queue` now also checks that every step of `partition_states` is a partition of all sensors and ends with the planner's tours. That test, the GA history test and the conflict-count test pass; the full suite was not re-run.
+  - A codespace restart had wiped the scratchpad, including the seed 1 cache, so this GIF was made by the real script. The README is updated, and nothing is committed.
 - **Added six more animations**, at the user's request (ideas 1, 2, 4, 5, 7 and 8 of the list given to the user).
   - **In `ga_evolution.py`:** `_population.gif` (each tour as a dot, straight-line length against m(π), with lines of equal fitness) and `_radial.gif` (distance from the base along the best tour, peaks marked). They are drawn by `plot.ga_population_animation` and `ga_radial_animation`.
   - **New `pipeline_gifs.py`, with drawing in new `animations.py`:**
