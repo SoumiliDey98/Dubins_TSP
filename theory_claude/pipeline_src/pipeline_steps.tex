@@ -1,0 +1,387 @@
+% pipeline_steps.tex: the steps of planner.run in Dubins_TSP_New_Implementation_claude, each with what goes
+% in and what comes out, in the notation of Dubins_TSP.pdf.
+%
+% Build from this folder:
+%   pdflatex pipeline_steps.tex && pdflatex pipeline_steps.tex
+%   mv pipeline_steps.pdf ..
+%   rm -f pipeline_steps.aux pipeline_steps.log pipeline_steps.out
+\documentclass[10pt]{article}
+\usepackage[letterpaper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\rplan}{r_{\mathrm{plan}}}
+\newcommand{\rsafe}{r_{\mathrm{safe}}}
+\newcommand{\dsafe}{d_{\mathrm{safe}}}
+\newcommand{\dgeo}{d_{\mathrm{geo}}}
+\newcommand{\Kmax}{K_{\max}}
+\newcommand{\R}{\mathbb{R}}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\setlist{nosep,leftmargin=1.5em}
+\makeatletter\@secpenalty=0\makeatother   % do not prefer page breaks before headings
+
+% One step: its input, what it does, and its output.
+\newcommand{\inputs}{\paragraph{Input.}}
+\newcommand{\does}{\paragraph{What it does.}}
+\newcommand{\outputs}{\paragraph{Output.}}
+\newcommand{\seedone}{\paragraph{On seed 1.}}
+
+\begin{document}
+\sloppy
+
+\begin{center}
+  {\LARGE The Planner Step by Step: What Goes In and What Comes Out}\\[1.2em]
+  {\large November 2026}
+\end{center}
+\vspace{1em}
+
+{\sloppy
+This note follows \code{planner.run(seed, p)} in \code{Dubins\_TSP\_New\_Implementation\_claude/}, the program that
+carries out the overall algorithm of Section~0.11 of \code{Dubins\_TSP.pdf}. For every step it states what goes in,
+what the step does, and what comes out, with the name and size of each piece of data as the code passes it on. The
+steps are numbered 0 to 6, as in the flow diagram \code{output/pipeline\_flow.png}; each step also gives the steps of
+Section~0.11 it carries out. The example numbers come from seed~1 with the default parameters (Table~\ref{tab:params}).
+\par}
+
+\paragraph{Notation.} The base station is $S_0$ and the sensors are $S_1,\dots,S_n$. In the code, sensor $i$ is counted
+from 0, so the paper's $S_{i+1}$ is the code's sensor $i$; in the distance table $D$, row and column $0$ belong to the
+base and row and column $i+1$ to sensor $i$. A group of sensors is a set $\mathcal{S}_k$, and a tour $\pi$ is the order
+in which one sink visits its group, starting and ending at $S_0$. $B$ is the time budget; in Step~3c the two halves of a
+split group are written $A_t$ and $B_t$, as in Section~0.9.
+
+%--------------------------------------------------------------------------------------------------------------------
+\section{The Steps at a Glance}
+
+\begin{table}[H]
+\centering\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.55cm}>{\raggedright\arraybackslash}p{1.25cm}LL@{}}
+\toprule
+Step & Code & Sec.~0.11 & Input & Output \\
+\midrule
+0 & \code{scenario.make} & -- & seed; map settings & map: base, $n$ sensors, dwell times $\tau$, obstacles \\
+1 & \code{geodesic.build} & Step 2 & base, sensors, obstacles; margins $\rplan$, $\rsafe+0.5$ &
+  distance table $D$ ($(n{+}1)\times(n{+}1)$), predecessors, graph nodes \\
+2 & \code{planner.plan\_routes} & Step 1 & all sensor ids & a queue holding one group of all $n$ sensors \\
+3a & \code{ga\_tour.optimize} & Steps 3, 6 & one group $\mathcal{S}_k$; positions; $r$; $R$ & visiting order $\pi$ \\
+3b & \code{trajectory.build} & Steps 2, 4, 6 & order $\pi$; $D$ and paths; $\tau$; $R$, $v$, $\Delta t$ &
+  tour: path, frames, length $L_k$, time $T_k$ \\
+3c & \code{partition.bisect} & Steps 5, 7 & $T_k$, $B$; for a split: $\mathcal{S}_k$, $D$, $\tau$ &
+  keep the tour as a sink, or two halves $A_t$, $B_t$ to the queue \\
+4 & \code{conflict\_game.resolve} & Steps 8--10 & frames, $T_k$, $L_k$ of all $K$ sinks; $\dsafe$, $B$ &
+  new frames, $T_k$, $L_k$; one record per game \\
+5 & \code{planner.reoptimize} & Step 12 & sinks still in conflict; their tours & new tours; game played again
+  (at most 3 rounds) \\
+6 & \code{planner.check} & Step 11 & the final result & $K$, $T_{\max}$, $L_{\mathrm{total}}$ and every constraint
+  measured \\
+\bottomrule
+\end{tabularx}
+\caption{Every step with its code, its steps in Section~0.11, and what goes in and out. Steps 2--3c repeat until the
+queue is empty; Steps 4--5 repeat until no conflict is left or three repairs have been tried.}
+\label{tab:glance}
+\end{table}
+
+%--------------------------------------------------------------------------------------------------------------------
+\section{The Data Passed Between Steps}
+
+\begin{table}[H]
+\centering\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.4cm}>{\raggedright\arraybackslash}p{2.0cm}L
+  >{\raggedright\arraybackslash}p{1.5cm}@{}}
+\toprule
+Name in the code & Made by & What it holds & Used by \\
+\midrule
+\code{scen} & Step 0 & \code{base} $\in\R^2$; \code{xy} $\in\R^{n\times2}$, the sensor positions; \code{tau}
+  $\in\R^{n}$, the dwell times $\tau_i$; \code{obstacles}, a list of polygons (each an $m\times2$ array of corners)
+  & 1, 3, 6 \\
+\code{geo} & Step 1 & \code{D} $\in\R^{(n+1)\times(n+1)}$, the geodesic distances $\dgeo$; \code{pred}, the
+  predecessors of Dijkstra's runs; \code{nodes} $\in\R^{N\times2}$, the graph's points; \code{obstacles}, the union of
+  the original obstacles & 3, 4, 6 \\
+$r$ & from $D$ & $r_i = D[0, i{+}1]$, each sensor's distance from the base (eq.~9) & 3a, 3c \\
+$D_s$ & from $D$ & $D[1{:}, 1{:}]$, the sensor-to-sensor distances & 3c \\
+\code{ids} & Step 2 or 3c & a group $\mathcal{S}_k$: the ids of its sensors & 3a, 3c \\
+\code{order} & Step 3a & the tour $\pi$: the group's ids in visiting order & 3b \\
+\code{tour} & Step 3b & \code{order}; \code{path}, a dense polyline (points $\Delta s = 0.25$ m apart);
+  \code{frames} $\in\R^{F\times2}$, the position every $\Delta t = 0.5$ s from $t=0$; \code{L}, the length $L_k$ [m];
+  \code{T}, the mission time $T_k$ [s] & 3c, 4, 5, 6 \\
+\code{tours} & Steps 2--3c & the $K$ tours kept, one per sink & 4, 5, 6 \\
+\code{result} & Steps 4--5 & \code{tours} (the plan before resolving); \code{frames}, \code{T}, \code{L} after
+  resolving; \code{games}; the conflicts \code{before} and \code{after}; the repair \code{round} kept & 6 \\
+\code{checks} & Step 6 & $K$, $T_{\max}$, $L_{\mathrm{total}}$, and every constraint measured & the user \\
+\bottomrule
+\end{tabularx}
+\caption{The data that flows through the planner, with its size. $n$ is the number of sensors, $N$ the number of graph
+points, $K$ the number of sinks and $F$ the number of frames of a sink.}
+\label{tab:data}
+\end{table}
+
+\code{planner.run} hands all of it back as one dictionary: \code{scenario}, \code{geo}, \code{result},
+\code{checks}, \code{times} and \code{params}.
+
+%--------------------------------------------------------------------------------------------------------------------
+\section{Each Step in Detail}
+
+\subsection*{Step 0. Make the map (\code{scenario.make})}
+
+\inputs
+\begin{itemize}
+  \item The seed, a whole number. The same seed always gives the same map.
+  \item From \code{config.py}: a $100\times100$ m square with the base at $(50, 50)$; 10--15 obstacles; 90--110
+    sensors; dwell times $\tau_i$ drawn from 1--5 s; 60\,\% of the sensors placed 3--7 m from an obstacle, with half
+    of those placement attempts aimed at inner corners.
+\end{itemize}
+\does
+\begin{enumerate}
+  \item Places random obstacles (polygons, L, C and cross shapes), each centred at least 25 m from the base, so that
+    their $\rplan$-inflated versions neither touch each other nor come within 5 m of the base.
+  \item Places the sensors near obstacles, and keeps one only if a sink can drive base~$\to$~sensor~$\to$~base
+    keeping $\rsafe$ from every obstacle (this uses Steps 1 and 3b on a small test map).
+  \item Spreads the remaining sensors over the free space and draws a dwell time for each.
+\end{enumerate}
+\outputs
+\code{scen}: \code{base}, \code{xy} ($n\times2$), \code{tau} ($n$), \code{obstacles}, and \code{n\_near}, the number of
+sensors placed near obstacles. Step~0 is not part of Section~0.11: in the field the map is given.
+\seedone 9 obstacles and $n = 98$ sensors.
+
+\subsection*{Step 1. Geodesic distances (\code{geodesic.build}; Section 0.11, Step 2)}
+
+\inputs
+\begin{itemize}
+  \item \code{base}, \code{xy} and \code{obstacles} from Step 0.
+  \item The margins $\rplan = \rsafe + R = 2 + 5 = 7$ m and $\rsafe + 0.5 = 2.5$ m.
+\end{itemize}
+\does
+\begin{enumerate}
+  \item Inflates every obstacle by $\rplan$; the corners of the inflated polygons become graph points, after the $n+1$
+    terminals ($S_0, \dots, S_n$).
+  \item Joins two points by an edge if the straight line between them does not enter an obstacle inflated by
+    $\rsafe + 0.5$ (when the line touches a terminal) or by $\rplan$ (between two corners). The edge's weight is its
+    length. This is the visibility graph (\code{geodesic.visibility\_graph}).
+  \item Runs Dijkstra's algorithm from each of the $n+1$ terminals. Each run gives one row of $D$ and the predecessors
+    from which \code{geodesic.path} rebuilds the corner-to-corner path. The graph itself is not kept.
+\end{enumerate}
+\outputs
+\code{geo}: \code{D} ($(n{+}1)\times(n{+}1)$, symmetric, never below the straight-line distance), \code{pred},
+\code{nodes}, \code{n\_terminals} $= n+1$, and \code{obstacles}. From $D$ the later steps take $r = D[0,1{:}]$ and
+$D_s = D[1{:},1{:}]$. If a sensor cannot be reached, the planner stops with an error.
+\seedone 99 terminals, 148 corners, 7898 edges. The longest detour is to $S_{54}$ (the code's sensor 53): $r = 55.0$ m against 41.8 m
+in a straight line.
+
+\subsection*{Step 2. The queue of groups (\code{planner.plan\_routes}; Section 0.11, Step 1)}
+
+\inputs The ids $0, \dots, n-1$ of all sensors.
+\does Starts a first-in, first-out queue holding one group, $\mathcal{S}_1 = \{0, \dots, n-1\}$: one sink with every
+sensor. Steps 3a--3c then take groups from the front of the queue until it is empty.
+\outputs The queue $[\mathcal{S}_1]$, an empty list of kept tours, and an empty list of problems.
+
+\subsection*{Step 3a. Visiting order: the genetic algorithm (\code{ga\_tour.optimize}; Section 0.11, Steps 3 and 6)}
+
+\inputs
+\begin{itemize}
+  \item The group $\mathcal{S}_k$ taken from the front of the queue.
+  \item The sensor positions \code{xy}, the base, and $r$ from Step 1.
+  \item $R = 5$ m; a population of 50 tours; 100 generations; mutation probability 0.1; the random-number generator
+    of Steps 1--7, started from the seed.
+\end{itemize}
+\does
+\begin{enumerate}
+  \item Makes 50 start tours that are radially unimodal (Section 0.8.2): each sensor is put at random in $S_{\mathrm{out}}$
+    or $S_{\mathrm{in}}$; $S_{\mathrm{out}}$ is visited by increasing $r$, then $S_{\mathrm{in}}$ by decreasing $r$, so
+    every start tour has one peak.
+  \item Scores each tour by its fitness (Section 0.8.1)
+    \[ \mathrm{Fitness}(\pi) = L_{\mathrm{euclid}}(\pi) + m(\pi)\,\pi R, \]
+    the straight-line length plus $\pi R \approx 15.7$ m for each radial peak $m(\pi)$. Obstacles enter only through $r$.
+  \item In each generation keeps the better 25 tours and adds 25 children: ordered crossover of two kept tours (the
+    first $c$ sensors of one, then the rest in the other's order), and with probability 0.1 a swap of two sensors.
+    The paper does not specify these two moves; they are the code's choice.
+  \item After 100 generations returns the tour with the lowest fitness. A group of one or two sensors needs no search:
+    it is visited in order of $r$.
+\end{enumerate}
+\outputs The visiting order $\pi$ of $\mathcal{S}_k$ (a permutation of its ids). Extra peaks cost $\pi R$ each but are
+allowed, so $\pi$ need not be unimodal.
+\seedone The first run (all 98 sensors) ends with a best tour of 9 peaks.
+
+\subsection*{Step 3b. The drivable path and its time (\code{trajectory.build}, with \code{dubins\_path}; Section 0.11,
+Steps 2, 4 and 6)}
+
+\inputs
+\begin{itemize}
+  \item The order $\pi$ from Step 3a.
+  \item From Step 1: \code{geo} (the corner-to-corner paths through \code{geodesic.path}, and the obstacles).
+  \item From Step 0: the dwell times $\tau_i$.
+  \item $R = 5$ m, $v = 5$ m/s, $\Delta t = 0.5$ s, $\Delta s = 0.25$ m, $\rsafe = 2$ m, and the Dubins method
+    (\code{shortest} by default, or \code{pdf} for the rule of Section 0.13).
+\end{itemize}
+\does
+\begin{enumerate}
+  \item \emph{Waypoints:} base, the sensors in order, base, joined by their geodesic paths; the corners of those paths
+    become waypoints too. A corner closer than $R$ to a neighbouring waypoint is dropped if the shortcut stays
+    $\rsafe + 0.5$ m from every obstacle.
+  \item \emph{Headings} (the $\theta$ of Section 0.5): at every waypoint one of 17 candidates (16 directions and the
+    bisector of the turn) is chosen by dynamic programming, so that the total Dubins length is as short as possible and
+    every leg keeps $\rsafe$ from the obstacles.
+  \item \emph{Legs:} every pair of consecutive poses is joined by a Dubins path (\code{dubins\_path.returnDubinsPath}):
+    the shortest of LSL, RSR, LSR, RSL, RLR and LRL, or the type of the Section 0.13 rule.
+  \item \emph{Time} (eq.~17): driving at constant speed and stopping $\tau_i$ at each sensor,
+    \[ T_k = \frac{L_k}{v} + \sum_{i \in \mathcal{S}_k} \tau_i . \]
+  \item \emph{Frames:} the position is read every $\Delta t$ seconds from $t = 0$; during a stop the position repeats.
+\end{enumerate}
+\outputs \code{tour}: \code{order}, \code{path}, \code{frames} ($F\times2$), \code{L} $= L_k$ and \code{T} $= T_k$.
+\seedone Sink 8's 5 sensors: 120.5 m of straight lines (what the GA scored), a Dubins path of 176.9 m, and
+$T = 176.9 / 5 + 15.6 = 51.0$ s over 103 frames.
+
+\subsection*{Step 3c. The budget, and splitting (\code{partition.bisect}; Section 0.11, Steps 5 and 7)}
+
+\inputs
+\begin{itemize}
+  \item $T_k$ from Step 3b and the budget $B = 80$ s (eq.~18); $\Kmax = 30$.
+  \item For a split: the group $\mathcal{S}_k$, \code{xy}, the base, $D_s$ and $r$ from Step 1, $\tau$, $v$ and $R$.
+\end{itemize}
+\does
+\begin{itemize}
+  \item If $T_k \le B$, the tour is kept: one more sink.
+  \item If $T_k > B$ and $\mathcal{S}_k$ has more than one sensor, the group is split in two (Section 0.9.1):
+    \begin{enumerate}
+      \item affinity $W_{ij} = \exp\!\big(-(\dgeo(i,j)/\sigma)^2\big)$, $W_{ii} = 0$, with
+        $\sigma = \max(\text{mean nearest-neighbour distance}, R)$;
+      \item degrees $d_i = \sum_j W_{ij}$ and the normalised Laplacian $L_{\mathrm{norm}} = I - D^{-1/2} W D^{-1/2}$;
+      \item its Fiedler vector $f$, the eigenvector of the second-smallest eigenvalue;
+      \item for every threshold $t$, $A_t = \{S_i : f_i \le t\}$ and $B_t = \{S_i : f_i > t\}$; the threshold kept
+        minimises $\max\big(\hat T(A_t), \hat T(B_t)\big)$, where $\hat T$ is the length of a sweep round the base in
+        polar-angle order with geodesic legs, divided by $v$, plus $\sum\tau_i$.
+    \end{enumerate}
+    Both halves go to the back of the queue; each later gets its own Steps 3a and 3b. The other groups are not touched.
+  \item If a single sensor alone needs $T_k > B$, its tour is kept and the problem is reported.
+  \item If the kept tours plus the waiting groups would need more than $\Kmax$ sinks, planning stops and the problem
+    is reported.
+\end{itemize}
+\outputs Either the tour, added to the kept tours, or the two halves $A_t$ and $B_t$, added to the queue. When the queue
+is empty, Steps 1--7 hand on \code{tours} ($K$ tours, each with $T_k \le B$) and the list of problems.
+\seedone One sink with all 98 sensors would need 1202 s. After 29 GA runs and 14 splits there are $K = 15$ sinks, the
+longest taking $T_{\max} = 79.6$ s. The first split gives halves of 52 and 46 sensors.
+
+\subsection*{Step 4. The conflict game (\code{conflict\_game.resolve}; Section 0.11, Steps 8--10)}
+
+\inputs
+\begin{itemize}
+  \item The \code{frames}, $T_k$ and $L_k$ of all $K$ kept tours (all sinks leave the base at $t = 0$).
+  \item \code{geo}, for the obstacle check of a DETOUR.
+  \item $\dsafe = 3$ m (eq.~20); the 5 m docking zone round the base; the cost weights $(\beta, \gamma, \delta) =
+    (1, 1, 1)$; a longest WAIT of 20 s; a DETOUR side-step of $\dsafe + 0.5 = 3.5$ m; the budget $B$; at most 500
+    games.
+\end{itemize}
+\does
+\begin{enumerate}
+  \item Finds the earliest moment when two sinks come closer than $\dsafe$ (measured between frames, outside the
+    docking zone). The sinks in conflict then are the players.
+  \item Gives each player its strategies: GO (keep the plan), WAIT (the shortest stop that clears the conflict, or else the
+    least risky one) and DETOUR (step aside and rejoin). A WAIT or DETOUR is offered only if the sink still finishes within $B$.
+  \item Each player's cost is
+    \[ J_k = \alpha \cdot \text{(seconds closer than $\dsafe$ to any sink)} + \beta\,\Delta T + \gamma\,\Delta L / v +
+       \delta\,W, \]
+    with $\alpha$ large enough that any danger outweighs any delay. Starting from all GO, the player who gains most
+    switches, until no player can gain: a pure Nash equilibrium (Section 0.10.1).
+  \item Applies the chosen strategies and moves on to the next conflict.
+\end{enumerate}
+\outputs New \code{frames}, $T_k$ and $L_k$ (a WAIT adds time; a DETOUR adds time and length), and one record per game:
+its players, their strategies, the switches, the potential $\Phi$ after each switch, and the equilibrium. With
+\code{--resolver simple}, \code{simple\_resolver.resolve} (Section 0.10.2) takes the same input and gives the same output,
+with one record per stop.
+\seedone 6 games take the plan from 16 pairs and 63.0 s in conflict to none.
+
+\subsection*{Step 5. Repair (\code{planner.reoptimize}, inside \code{planner.resolve\_and\_check}; Section 0.11,
+Step 12)}
+
+\inputs
+\begin{itemize}
+  \item The pairs still in conflict after Step 4.
+  \item The tours of the sinks involved, the map, \code{geo}, $B$, and a second random-number generator, started from
+    the seed plus 1000, so that both resolvers start Steps 8--12 alike.
+\end{itemize}
+\does
+\begin{enumerate}
+  \item For each sink still in conflict, tries two other tours: its order reversed, and a fresh GA run on its sensors.
+    Each is built as in Step 3b, and kept only if it fits $B$ and is less dangerous against the other sinks.
+  \item Plays Step 4 again on all the planned tours, with the new ones.
+  \item Repeats at most 3 times, stopping as soon as no conflict is left.
+\end{enumerate}
+\outputs \code{result}, from the round with the least time in conflict: \code{round}, \code{tours} (the plan before
+resolving), \code{frames}, \code{T} and \code{L} after resolving, \code{games}, and the conflicts \code{before} and
+\code{after}. Conflicts are reported, not guaranteed to be removed: on seeds 1--30 the game leaves some on 8 maps.
+\seedone No repair is needed; round 0 is kept.
+
+\subsection*{Step 6. The checks (\code{planner.check}; Section 0.11, Step 11)}
+
+\inputs \code{result} from Step 5, \code{scen}, \code{geo}, the parameters, and the problems found in Step 3c.
+\does Measures every objective and constraint of Sections 0.6--0.7 on the final frames, independently of how they were
+made.
+\outputs \code{checks}:
+\begin{itemize}
+  \item the objectives: $K$, $T_{\max} = \max_k T_k$, $L_{\mathrm{total}} = \sum_k L_k$ (eqs.~11--14);
+  \item \code{coverage\_ok}: every sensor visited exactly once (eqs.~15--16);
+  \item \code{budget\_ok}: every $T_k \le B$ (eq.~18);
+  \item \code{clearance}: the closest any sink comes to an obstacle, which must be at least $\rsafe$ (eq.~19);
+  \item \code{curvature\_x\_R}: the sharpest bend times $R$, which must be at most $1.15$;
+  \item \code{conflict\_pairs} and \code{closest}: the pairs still closer than $\dsafe$, and the closest approach
+    (eq.~20);
+  \item \code{K\_ok} ($K \le \Kmax$) and the list of problems.
+\end{itemize}
+\seedone $K = 15$, $T_{\max} = 79.6$ s, $L_{\mathrm{total}} = 2927$ m, no conflict left, closest approach 3.16 m.
+
+%--------------------------------------------------------------------------------------------------------------------
+\section{How the Steps Connect}
+
+\begin{itemize}
+  \item \textbf{Run once:} Steps 0 and 1 at the start, Step 6 at the end.
+  \item \textbf{The splitting loop} (Steps 2--3c): take a group from the front of the queue, order it (3a), build its
+    path (3b), then keep it or split it (3c). A split puts both halves at the back of the queue. The loop ends when the
+    queue is empty, and its output is the $K$ tours.
+  \item \textbf{The repair loop} (Steps 4--5): play the game on all $K$ tours (4); if conflicts are left, re-plan the
+    sinks involved (5) and play again. At most 3 repairs; the round with the least time in conflict is kept.
+  \item \textbf{Three measures of length:} the GA scores straight lines plus a peak penalty (only $r$ is geodesic);
+    $\hat T$ in Step 3c uses geodesic legs; only the budget test uses the real Dubins length from Step 3b.
+  \item \textbf{Randomness:} one random-number generator, started from the seed, serves Steps 1--7 (Steps 2--3c here);
+    a second, started from the seed plus 1000, serves Steps 8--12 (Steps 4--5). The same seed always gives the same
+    result.
+\end{itemize}
+
+%--------------------------------------------------------------------------------------------------------------------
+\section*{Appendix: the Parameters Used}
+
+\begin{table}[H]
+\centering\small
+\renewcommand{\arraystretch}{1.2}
+\begin{tabularx}{\textwidth}{@{}lllL@{}}
+\toprule
+Symbol & Code & Value & Meaning \\
+\midrule
+$v$ & \code{v} & 5 m/s & constant speed of a sink \\
+$R$ & \code{R} & 5 m & minimum turning radius, wheelbase$/\tan\delta_{\max} = 2.5/0.5$ (eq.~7) \\
+$\rsafe$ & \code{r\_safe} & 2 m & obstacle clearance, half the width plus 1 m (eq.~5) \\
+$\rplan$ & \code{r\_plan} & 7 m & obstacle inflation for planning, $\rsafe + R$ \\
+$\dsafe$ & \code{d\_safe} & 3 m & minimum distance between two sinks (eq.~20) \\
+$B$ & \code{B} & 80 s & time budget of every sink (eq.~18) \\
+$\Kmax$ & \code{K\_max} & 30 & most sinks allowed \\
+-- & \code{base\_radius} & 5 m & docking zone round the base \\
+$\Delta t$ & \code{dt} & 0.5 s & time between frames \\
+$\Delta s$ & \code{ds} & 0.25 m & spacing of the points of a Dubins path \\
+-- & \code{pop\_size}, \code{generations}, \code{mutation} & 50, 100, 0.1 & the GA \\
+$(\beta,\gamma,\delta)$ & \code{weights} & $(1, 1, 1)$ & weights of extra time, extra distance and waiting \\
+-- & \code{max\_wait}, \code{detour\_margin} & 20 s, 0.5 m & the longest WAIT; DETOUR side-step $\dsafe + 0.5$ \\
+-- & \code{curvature\_tol} & 0.15 & allowance when curvature is measured from sampled points \\
+-- & \code{max\_games}, \code{repair\_rounds} & 500, 3 & limits of Steps 4 and 5 \\
+\bottomrule
+\end{tabularx}
+\caption{The default parameters, from \code{config.default\_params}.}
+\label{tab:params}
+\end{table}
+
+\end{document}
