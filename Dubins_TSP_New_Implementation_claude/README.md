@@ -33,6 +33,8 @@ To change any parameter, edit `config.py` or pass it to
 
 ## Files and the paper
 
+Every program, tests included, explains itself line by line: each file opens with "HOW TO READ THIS FILE" and "WHAT THIS FILE IS FOR", and every statement has a plain-language comment above it, written so that a young reader can follow it. Python words are explained the first time they appear in each file.
+
 | File | Paper | What it does |
 |---|---|---|
 | `config.py` | 0.2–0.7 | All parameters. R = wheelbase / tan(δ_max) (eq. 7), r_safe = w/2 + δ_margin (eq. 5). |
