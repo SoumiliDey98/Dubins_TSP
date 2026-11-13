@@ -185,6 +185,26 @@ def test_geodesic_distances():
         assert trajectory.clearance(pts, geo) >= P["r_safe"]
 
 
+def test_visibility_graph_is_the_graph_build_uses():
+    import shapely
+    from scipy.sparse import csr_matrix
+    from scipy.sparse.csgraph import dijkstra
+    scen, geo = _map()
+    nodes, i, j, length = geodesic.visibility_graph(scen, P)
+    n_t = geo["n_terminals"]
+    assert np.array_equal(nodes, geo["nodes"]) and np.all(i < j)
+    assert np.allclose(length, np.hypot(*(nodes[i] - nodes[j]).T))
+    graph = csr_matrix((length, (i, j)), shape=(len(nodes), len(nodes)))
+    assert np.array_equal(dijkstra(graph, directed=False, indices=np.arange(n_t))[:, :n_t], geo["D"])
+    # Every edge stays r cos(3 pi / 16) from the original obstacles (the chords of the inflated polygons,
+    # theory_claude/geodesic_math.pdf), with r = r_safe + 0.5 at a terminal and r_plan between two corners.
+    lines = shapely.linestrings(np.stack([nodes[i], nodes[j]], axis=1))
+    gap = shapely.distance(lines, geo["obstacles"])
+    term = (i < n_t) | (j < n_t)
+    assert np.all(gap[term] >= (P["r_safe"] + 0.5) * math.cos(3 * math.pi / 16) - 1e-5)
+    assert np.all(gap[~term] >= P["r_plan"] * math.cos(3 * math.pi / 16) - 1e-5)
+
+
 def test_scenario_puts_sensors_around_obstacles():
     from shapely.geometry import Point, Polygon
     from shapely.ops import unary_union
@@ -254,6 +274,17 @@ def test_ga_history_does_not_change_the_result():
     assert short == []                                            # two sensors: no GA run, nothing recorded
 
 
+def test_ga_crossover_and_swap():
+    """The GA's moves (module_figures.py draws them): ordered crossover keeps the first parent's prefix and
+    the second parent's order for the rest; swap exchanges two positions and leaves its input alone."""
+    p1, p2 = [5, 1, 4, 2, 3, 0], [0, 2, 1, 3, 5, 4]
+    child = ga_tour.ordered_crossover(p1, p2, 3)
+    assert child == [5, 1, 4, 0, 2, 3]
+    assert sorted(child) == sorted(p1)
+    assert ga_tour.ordered_crossover(p1, p2, len(p1)) == p1
+    assert ga_tour.swap(child, 0, 5) == [3, 1, 4, 0, 2, 5] and child == [5, 1, 4, 0, 2, 3]
+
+
 def test_plan_routes_log_changes_nothing_and_follows_the_queue():
     """The GA log of plan_routes (ga_evolution.py, pipeline_gifs.py) must not change the plan, and the
     splitting animation rebuilds the queue of groups from it."""
@@ -315,6 +346,38 @@ def test_bisection_is_disjoint_and_complete():
     ids = np.arange(len(scen["xy"]))
     A, B = partition.bisect(ids, scen["xy"], scen["base"], geo["D"][1:, 1:], geo["D"][0, 1:], scen["tau"], P)
     assert len(A) and len(B) and not set(A) & set(B) and sorted(set(A) | set(B)) == list(ids)
+
+
+def test_bisection_trace_changes_nothing_and_adds_up():
+    """The trace of partition.bisect (module_figures.py) must not change the split, and must record it:
+    the chosen threshold is the min of the larger workload, and its workloads are those of the halves."""
+    scen, geo = _map()
+    xy, base, tau, Ds, r = scen["xy"], scen["base"], scen["tau"], geo["D"][1:, 1:], geo["D"][0, 1:]
+    ids = np.arange(len(xy))
+    A, B = partition.bisect(ids, xy, base, Ds, r, tau, P)
+    tr = {}
+    A2, B2 = partition.bisect(ids, xy, base, Ds, r, tau, P, trace=tr)
+    assert np.array_equal(A, A2) and np.array_equal(B, B2)
+    assert len(tr["f"]) == len(ids) and tr["W"].shape == (len(ids), len(ids)) and tr["sigma"] >= P["R"]
+    assert tr["best"] == int(np.argmin(tr["workloads"].max(1)))
+    assert np.array_equal(A, ids[tr["f"] <= tr["thresholds"][tr["best"]]])
+    assert np.allclose(tr["workloads"][tr["best"]], [partition.workload(A, xy, base, Ds, r, tau, P["v"]),
+                                                     partition.workload(B, xy, base, Ds, r, tau, P["v"])])
+    seq = partition.sweep_order(A, xy, base)                     # the tour that workload measures
+    assert sorted(seq.tolist()) == sorted(A.tolist())
+    ang = np.arctan2(*(xy[seq] - base).T[::-1])
+    assert np.sum(np.diff(ang) < 0) <= 1                          # by angle, wrapping round once at most
+
+
+def test_module_figures_draw():
+    """The two figures of module_figures.py that need no plan are drawn without error."""
+    import tempfile
+    import module_figures
+    with tempfile.TemporaryDirectory() as d:
+        module_figures.flow_figure(P, os.path.join(d, "flow.png"))
+        s = module_figures.geodesic_figure(1, P, os.path.join(d, "geodesic.png"))
+        assert os.path.getsize(os.path.join(d, "flow.png")) > 0 and os.path.getsize(os.path.join(d, "geodesic.png")) > 0
+    assert s["terminals"] == len(_map()[0]["xy"]) + 1
 
 
 # ---------------------------------------------------------------- trajectories (eq. 17, 19)

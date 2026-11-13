@@ -55,7 +55,7 @@ points is too short. The \emph{geodesic distance} is the length of the shortest 
         outside the grown obstacle keeps about that distance from the real one.
   \item \textbf{Decide which straight lines are allowed} (\code{\_inside}). A straight line is allowed if it does not cut
         into a grown obstacle. Touching it, or running along its edge, is allowed.
-  \item \textbf{Build a graph} (\code{build}). Its \emph{nodes} are the base, the sensors and the corners of the grown
+  \item \textbf{Build a graph} (\code{visibility\_graph}, called by \code{build}). Its \emph{nodes} are the base, the sensors and the corners of the grown
         obstacles. Two nodes are joined by an \emph{edge} if the straight line between them is allowed, and the edge's
         length is its \emph{weight}.
   \item \textbf{Find shortest paths} (\code{build}, \code{path}). Dijkstra's algorithm [2] finds the shortest chain of
@@ -226,7 +226,7 @@ keeps at least $0.8315\,r - \varepsilon$ from every obstacle.
 \emph{In words:} the nodes are the terminals and the corners of the 7\,m polygons; two nodes are joined if the line
 between them is allowed at the margin that applies to it.
 
-\paragraph{Nodes} (\code{build}). The terminals come first, then the corners:
+\paragraph{Nodes} (\code{visibility\_graph}). The terminals come first, then the corners:
 \begin{equation}
   \begin{aligned}
   &v_a = S_a \quad (a = 0, \ldots, n),\\

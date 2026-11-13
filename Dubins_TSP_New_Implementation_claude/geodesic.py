@@ -30,10 +30,10 @@ def _inside(polys):
     return u
 
 
-def build(scen, p, require_all=True):
-    """Return {"nodes", "D", "pred", "n_terminals", "obstacles"}: D[a, b] is the geodesic
-    distance between terminals a and b; pred is used by path(); "obstacles" is the union
-    of the original (not inflated) obstacles, used for clearance checks."""
+def visibility_graph(scen, p):
+    """The graph that build() runs Dijkstra on. Returns (nodes, i, j, length): nodes are the
+    terminals (base, then sensors) followed by the corners of the obstacles inflated by r_plan;
+    edge k joins nodes i[k] < j[k], which see each other, and has the straight-line length length[k]."""
     terminals = np.vstack([scen["base"], scen["xy"]])
     n_t = len(terminals)
     grown = inflate(scen["obstacles"], p["r_plan"])
@@ -49,7 +49,15 @@ def build(scen, p, require_all=True):
         visible[term] = ~shapely.intersects(lines[term], _inside(inflate(scen["obstacles"], p["r_safe"] + 0.5)))
         visible[~term] = ~shapely.intersects(lines[~term], _inside(grown))
     i, j = i[visible], j[visible]
-    length = np.hypot(*(nodes[i] - nodes[j]).T)
+    return nodes, i, j, np.hypot(*(nodes[i] - nodes[j]).T)
+
+
+def build(scen, p, require_all=True):
+    """Return {"nodes", "D", "pred", "n_terminals", "obstacles"}: D[a, b] is the geodesic
+    distance between terminals a and b; pred is used by path(); "obstacles" is the union
+    of the original (not inflated) obstacles, used for clearance checks."""
+    n_t = len(scen["xy"]) + 1
+    nodes, i, j, length = visibility_graph(scen, p)
     graph = csr_matrix((length, (i, j)), shape=(len(nodes), len(nodes)))
 
     dist, pred = dijkstra(graph, directed=False, indices=np.arange(n_t), return_predecessors=True)

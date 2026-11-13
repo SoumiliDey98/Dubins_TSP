@@ -23,6 +23,8 @@ python compare_dubins.py --figures       # the same, and also saves output/compa
 python ga_evolution.py --seed 1          # how the GA improves: table of its runs, output/ga_seed1_run5_*.png and *.gif
 python ga_evolution.py --seed 1 --run 0  # the same figures for another GA run of the table
 python pipeline_gifs.py --seed 1         # eight GIFs of the whole algorithm, output/seed1_*.gif and dubins_six_types.gif
+python module_figures.py --seed 1        # six still figures: the flow of planner.run, then geodesic, GA, trajectory, bisection, game (about 1 min)
+python gif_stills.py                     # key frames of every GIF in output/ as PNGs, in output/stills/
 python tests/run_tests.py                # all tests, about 5 minutes
 ```
 
@@ -35,14 +37,16 @@ To change any parameter, edit `config.py` or pass it to
 |---|---|---|
 | `config.py` | 0.2–0.7 | All parameters. R = wheelbase / tan(δ_max) (eq. 7), r_safe = w/2 + δ_margin (eq. 5). |
 | `scenario.py` | 0.2, 0.4 | Seeded random map: disjoint polygon obstacles, sensors with dwell times τᵢ, many of them close to the obstacles and around their concave corners. |
-| `geodesic.py` | eq. 9, 0.9 step 1, 0.11 step 2 | Visibility graph around obstacles inflated by r_safe + R, then Dijkstra: geodesic distance and path between every pair of sensors and the base. |
+| `geodesic.py` | eq. 9, 0.9 step 1, 0.11 step 2 | Visibility graph around obstacles inflated by r_safe + R (`visibility_graph`), then Dijkstra (`build`): geodesic distance and path between every pair of sensors and the base. |
 | `dubins_path.py` | 0.1, 0.12–0.13 | Dubins path between two poses, with the names and steps of the DubinsPath notebook program (`turnType`, `cp1`, `Stan`, `psiD`, …). A "word" in this README is a `turnType` in the code. By default all six are computed and the shortest is kept, which differs from Section 0.13; `dubins_method="pdf"` uses the rule of Section 0.13 (see the comparison below). The opening comment of the file lists the limitations of the notebook program and how they are corrected. |
 | `trajectory.py` | 0.5, eq. 17, eq. 19 | Tour → waypoints → headings → Dubins legs → positions every dt seconds. T_k = L_k/v + Σ τᵢ. |
-| `ga_tour.py` | 0.8 | Radially unimodal GA: initial tours with one radial peak; fitness = L_euclid + m(π)·π·R. Can record every generation (`history`) without changing the result. |
+| `ga_tour.py` | 0.8 | Radially unimodal GA: initial tours with one radial peak; fitness = L_euclid + m(π)·π·R; `ordered_crossover` and `swap` mutation. Can record every generation (`history`) without changing the result. |
 | `ga_evolution.py` | 0.8 | Plans Steps 1–7 as `planner.py` does, records every GA run, prints a table of them, and draws one run's convergence graph, fitness split and five GIFs (see "How the GA improves" below). |
 | `pipeline_gifs.py` | 0.11 | Plans a map as `planner.py` does and makes eight GIFs of the whole algorithm (see "Animations of the whole algorithm" below). |
 | `animations.py` | 0.8–0.11 | The drawing for `pipeline_gifs.py`. |
-| `partition.py` | 0.9 | Geodesic spectral bisection with the min–max workload threshold. |
+| `module_figures.py` | 0.8–0.11, eq. 9 | Six still figures, with their drawing: the flow of `planner.run`, and one figure each for `geodesic.py`, `ga_tour.py`, `trajectory.py`, `partition.py` and `conflict_game.py` (see "Figures of each module" below). |
+| `gif_stills.py` | — | Key frames of the GIFs in `output/` as PNG files and one contact sheet per GIF, for documents that cannot play animations. |
+| `partition.py` | 0.9 | Geodesic spectral bisection with the min–max workload threshold. Can record its steps (`trace`) without changing the result. |
 | `conflict_game.py` | eq. 20, 0.10, 0.10.1 | Conflict detection and the GO / WAIT / DETOUR best-response game (from `theory_claude/corridor_game_gt.py`). |
 | `simple_resolver.py` | eq. 20, 0.10.2 | The simplest alternative to the game, no game theory: sinks take turns, longest tour first; each stops just long enough to clear a meeting. |
 | `planner.py` | 0.6, 0.11 | Steps 1–12, the checks of Section 0.7, the objectives K, T_max, L_total, and the command line. |
@@ -74,6 +78,7 @@ To change any parameter, edit `config.py` or pass it to
 | Headings θ (Section 0.5) | At each waypoint, chosen from 16 directions plus the bisector of the turn, by dynamic programming. The choice minimises the tour's Dubins length, and each leg must keep r_safe from the obstacles. If no such choice exists, the bisectors are used and the check reports the problem. |
 | Open cases of the Section 0.13 rule (`dubins_method="pdf"`) | If the chosen word does not exist (LSR or RSL with S_tan < 2R), the shortest existing word is used. cp2 = 0 counts as a left turn, as in `findCSCTurnType` of the original `dubins.py`. Geometry is exact in both modes: the Δψ stepping of Section 0.13.1 is not used, so only the choice of word follows the paper. For LSR and RSL the cut-out angle is ψ_L ± sin⁻¹(2R/S_tan), not the paper's tan⁻¹(2R/S_tan), because S_tan is the distance between the circle centres and not the length of the straight part. |
 | GA fitness | Exactly as in the paper: straight-line length + m(π)·π·R. The radial distance rᵢ is geodesic (eq. 9). |
+| GA selection, crossover, mutation | Section 0.8 gives only the fitness and the start tours. Each generation keeps the better half of the 50 tours and refills the other half with children of two kept tours picked at random: ordered crossover (the first c sensors of one parent, c random, then the rest in the other parent's order), then, with probability 0.1, a swap of two random sensors. 100 generations; the best tour is the answer. |
 | σ in the affinity matrix | σ = max(mean geodesic nearest-neighbour spacing, R). Gaps smaller than the turning radius cannot shorten a Dubins tour. |
 | Workload T̂ | A sweep tour in polar-angle order with geodesic legs, divided by v, plus Σ τ. |
 | Conflict game strategies | GO / WAIT / DETOUR, as in `theory_claude/corridor_game_gt.py`, instead of the paper's Left / Right / Detour. A strategy that would exceed B is rejected (0.10 step 6), so WAIT only uses the time left in the budget. |
@@ -280,6 +285,41 @@ What it shows on seed 1 (default parameters, B = 80 s):
 - `output/seed1_game.gif` (29 s): one conflict game replayed switch by switch (Section 0.10.1), by default the one with the most switches: on seed 1 the game at departure, with 13 players and 8 switches, all GO → WAIT. For every profile from all-GO to the equilibrium, the map plays the first 12 s, with red links between sinks closer than d_safe. A timeline per player shows its WAIT (black), its stops at sensors (grey) and when it is too close to another sink (red), and the potential Φ = α·risk + cost is drawn per switch. Φ falls from 13284 to 1594, at every switch by exactly the switching player's gain (an exact potential game). Risk falls from 61.5 s to 7.0 s while the cost of the waits rises to 82.0 s. The 7.0 s of risk left are handled by later games: after all 6 games of the round, seed 1 has no conflict left. `--game N` replays another game. The animation re-runs round 0 of the game on the planned tours, with `conflict_game.resolve(..., trace)` recording each player's strategies; this is deterministic, so these are the planner's own games.
 - `output/dubins_six_types.gif` (13 s, needs no map): one leg from (0, 0) heading east to (12, 5), R = 5 m, as the end heading turns through 360° in steps of 4°. It shows all six turn types with their lengths (or "does not exist"), the shortest (blue, solid) and the type the rule of Section 0.13 picks (orange, dashed), with both lengths plotted against the heading. Over the 90 headings, the rule picks a longer path at 33 (up to +320 %). At 28 others its type does not exist, so the code falls back to the shortest.
 - `output/seed1_geodesic.gif` (9 s): the geodesic distance r of eq. 9 spreading from the base. The shortest-path tree from the base (from `geo["pred"]`) is drawn as far as the distance ρ has reached, against a dashed circle of straight-line distance ρ, with each sensor lighting up when it is reached. Sensors whose r is more than 2 % longer than the straight line are ringed in orange, and a chart plots r against the straight-line distance. On seed 1 the largest detour is +32 %.
+
+## Figures of each module (seed 1)
+
+`python module_figures.py --seed 1` draws six still figures, about 1 minute in all. `--only` picks some (e.g. `--only flow geodesic`, which plan nothing and take about 15 s). The ga, trajectory, bisection and game figures plan the map once, exactly as `planner.py` does, and draw the planner's own GA runs, tours, splits and games; each checks that it reproduces them. `--sink`, `--ga-sink`, `--split N` and `--game N` pick other examples (split and game counted from 1, as in the figure titles).
+
+- `output/pipeline_flow.png`: `planner.run` as a flow diagram. Every step has its module and function, its step in Section 0.11 and its main parameters; the arrows carry the data passed on (`scen`, `geo`, `order`, `tour`, halves, frames, game records). The two loops are drawn: splitting a group whose T > B (Steps 5–7) and repairing conflicts (Step 12).
+- `output/seed1_geodesic_graph.png`, for `geodesic.py`:
+  - (a) The input: 9 obstacles, 98 sensors and the base.
+  - (b) The visibility graph that `build` runs Dijkstra on, taken from `geodesic.visibility_graph`. It has 99 terminals, 148 corner nodes and 7898 edges, of which 6800 touch a terminal. Both inflated outlines are drawn, 7 m and 2.5 m. The 43 edges of sensor S54 are highlighted, with its blocked line to the base.
+  - (c) Dijkstra from the base: the shortest-path tree, with each sensor coloured by r = D[0, 1:]. The highlighted path to S54 is 55.0 m against 41.8 m straight (+32 %). It bends at sensors S49 and S22, not at corners, because those sensors lie 4.7-5.2 m from an obstacle, inside the 7 m zone, and a line that ends at a sensor needs only the 2.5 m margin.
+  - (d) Five rows and columns of the output D, with the straight-line distance in brackets where it is blocked, followed by what `build` returns and where the planner uses it.
+  - The figure re-runs Dijkstra on that graph and asserts that it gives `build`'s `D[0]` and `pred[0]` exactly. `test_visibility_graph_is_the_graph_build_uses` checks this on every row of `D`. It also checks that every edge keeps r·cos(3π/16) from the obstacles: r = 2.5 m for edges that touch a terminal and 7 m for edges between two corners. On seed 1 the closest edges are 2.26 m and 6.23 m from the obstacles, against bounds of 2.08 m and 5.82 m.
+- `output/seed1_sink14_ga_moves.png`, for `ga_tour.py`, on sink 14's 8 sensors (by default the sink with nearest to 8):
+  - (a) How a start tour is built (Section 0.8.2): the random split into S_out and S_in, then S_out by increasing r and S_in by decreasing r; fitness 125.3 + 1·π·5 = 141.0 m.
+  - (b) Ordered crossover of two start tours at cut 4: the child has two peaks, fitness 133.3 + 2·π·5 = 164.7 m.
+  - (c) A swap mutation of that child: 157.2 m.
+  - (d) One generation: generation 0 of the sink's real run, the better 25 tours kept, and the best and mean fitness per generation. For this group the best tour, 129.2 m, is already in generation 0, as it is for 13 of the 15 final groups (see the GA section above).
+  - The parents, the cut and the swap are picked for the example from a start population with its own random numbers; the figure says so. They are drawn by `ga_tour.ordered_crossover` and `ga_tour.swap`, which `optimize` uses.
+- `output/seed1_sink8_trajectory.png`, for `trajectory.py` and `dubins_path.py`, on sink 8 (the sink of `seed1_sink8_refine.gif`):
+  - (a) The 8 waypoints (5 sensors, 1 corner and the base twice), the 17 candidate headings at each, and the heading chosen.
+  - (b) The 7 Dubins legs (LSR RSL LSR RSL LSL LSR LSR), coloured left arc, straight, right arc. They total 176.9 m; with every heading set to the bisector they would total 224.1 m.
+  - (c) The 103 output frames, 2.5 m apart while moving, with the stops at the sensors (τ / 0.5 s frames each).
+  - (d) Distance against time: T = 176.9 / 5 + 15.6 = 51.0 s ≤ B = 80 s.
+  - The figure rebuilds the tour with `trajectory.build` and asserts that its frames, L and T are the planner's.
+- `output/seed1_split1_bisection.png`, for `partition.py`, on the first split (98 sensors, T = 1202 s):
+  - (a) The affinity W (σ = 8.4 m). (b) The Fiedler vector, coloured by rank. (c) The threshold sweep: T̂ of both sides against the number of sensors in A_t; the min-max is at 52 + 46 sensors, T̂ = 376 s and 386 s. (d) The two halves with the polar sweep tours that T̂ measures (`partition.sweep_order`); their GA runs then give T = 422 s and 466 s.
+  - Measured while making it: on seed 1 the Fiedler vector concentrates on one weakly linked pair of sensors in every one of the 14 splits (in split 1, sensors 30 and 6 have f = 0.70, against a median |f| of 0.01; in split 10 a pair has degree 0.00). The min-max sweep still gives halves that hold together: 77–100 % of the sensors have their nearest geodesic neighbour in the same half (81 % in split 1), against about 50 % for a random split.
+- `output/seed1_game6_pair.png`, for `conflict_game.py`, on game 6 of round 0 (by default a two-player game that ends in DETOUR): sinks 3 and 11 at t = 39 s.
+  - (a) The conflict as planned: 1.97 m apart at t = 39.57 s, between two frames, for 1.0 s.
+  - (b) The strategies: GO, WAIT 0.5 s for each, and DETOUR for sink 11 (+1.2 m, +0.5 s).
+  - (c) The 2 × 3 cost table from `conflict_game.play` (α = 6), each cell split into conflict between the two, conflict with other sinks and own cost. One switch, sink 11 to DETOUR (gain 5.3), reaches the equilibrium GO / DETOUR with costs 0.0 and 0.7.
+  - (d) The closest distance per 0.5 s step: 1.97 m as planned, 5.21 m at the equilibrium.
+  - The figure recomputes every cell from its parts and asserts that it equals the game record.
+
+`python gif_stills.py` turns every GIF in `output/` into still images, in `output/stills/`: 6 key frames per GIF (`-n` for another number, `--at` for frames at chosen times), each a PNG at the GIF's own size, and one contact sheet per GIF with each frame labelled by its time. Frames that only repeat the one before (the pauses) are skipped before the key frames are chosen, and the first and last frames are always kept. The 14 GIFs take about 15 s.
 
 ## Changes marked in `Dubins_TSP.pdf` (Section 0.13)
 

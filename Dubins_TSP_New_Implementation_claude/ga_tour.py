@@ -46,6 +46,20 @@ def initial_population(ids, r, size, rng):
     return pop
 
 
+def ordered_crossover(first, second, cut):
+    """Child of two tours: the first `cut` sensors of `first`, then the others in the order of `second`.
+    (The paper does not say how the GA crosses tours; this is the code's choice.)"""
+    head = first[:cut]
+    return head + [g for g in second if g not in set(head)]
+
+
+def swap(tour, a, b):
+    """Swap mutation: the sensors at positions a and b change places. Returns a new list."""
+    tour = list(tour)
+    tour[a], tour[b] = tour[b], tour[a]
+    return tour
+
+
 def optimize(ids, xy, base, r, p, rng, history=None):
     """Best visiting order of the sensors `ids` found by the GA: keep the better half,
     refill with ordered crossover (a prefix of one parent, the rest in the other
@@ -68,12 +82,9 @@ def optimize(ids, xy, base, r, p, rng, history=None):
         parents, children = pop[:half], []
         while half + len(children) < p["pop_size"]:
             i, j = rng.choice(half, 2, replace=False)
-            cut = int(rng.integers(1, len(ids)))
-            head = parents[i][:cut]
-            child = head + [g for g in parents[j] if g not in set(head)]
+            child = ordered_crossover(parents[i], parents[j], int(rng.integers(1, len(ids))))
             if rng.random() < p["mutation"]:
-                a, b = rng.choice(len(child), 2, replace=False)
-                child[a], child[b] = child[b], child[a]
+                child = swap(child, *rng.choice(len(child), 2, replace=False))
             children.append(child)
         pop = parents + children
     if history is not None:

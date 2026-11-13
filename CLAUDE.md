@@ -36,6 +36,9 @@ python ga_evolution.py --seed 1 --run 0 --no-gif   # another run of the table, P
 python pipeline_gifs.py --seed 1               # GIFs of the whole algorithm: conflicts, splitting, partition (1, 2, 3 ... sinks), one sink's refine, pipeline, game replay, six Dubins types, geodesic wave (about 9 min)
 python pipeline_gifs.py --only dubins          # the six-Dubins-types GIF alone; plans no map
 python pipeline_gifs.py --seed 1 --only refine --sink 3   # one of them; --budget/--resolver/--dubins as in planner.py
+python module_figures.py --seed 1              # six still PNGs: pipeline_flow, geodesic_graph, sink14_ga_moves, sink8_trajectory, split1_bisection, game6_pair (about 1 min)
+python module_figures.py --only flow geodesic  # the two that plan nothing (about 15 s); --sink, --ga-sink, --split N, --game N pick other examples
+python gif_stills.py                           # 6 key frames of every GIF in output/ as PNGs plus a contact sheet each, in output/stills/ (about 15 s)
 python tests/run_tests.py                      # whole suite
 
 # One test: tests are plain functions and run_tests.py has no selector
@@ -83,6 +86,7 @@ check                     -> measures every constraint from the final frames
 What spans several modules:
 
 - **Indices.** `geo["D"]` and `geodesic.path` use terminals: 0 is the base, i + 1 is sensor i. Tours, `tau` and `partition` use 0-based sensor ids, so `geo["D"][0, 1:]` is `r` and `geo["D"][1:, 1:]` is `Ds`.
+- **Visibility graph.** `geodesic.visibility_graph(scen, p)` returns `(nodes, i, j, length)`, the graph that `build` runs Dijkstra on; `build` does not keep it. A figure that draws the graph should call it rather than rebuild it. `test_visibility_graph_is_the_graph_build_uses` checks that the graph gives `D`. `theory_claude/geodesic_math_src/make_figures.py` predates it and still has its own copy of the visibility test.
 - **Three length measures.** The GA's fitness is straight-line length + m(π)·π·R, with no Dubins paths; only its radial distance `r` is geodesic. `partition.workload` uses geodesic legs. Only the budget test `T <= B` uses real Dubins lengths, from `trajectory.build`.
 - **Choosing the turn type.** `p["dubins_method"]` is read only in `trajectory.py`, at three call sites that must agree: the heading search's cost table (`dubins_path.returnPathDistances`), and `_leg_clear` and `build` (`dubins_path.returnDubinsPath`). Otherwise the heading search would optimise paths the sink does not drive. `findDubinsPath(..., "shortest")` is always the true minimum of the six turn types. `calculateCSCLengths` and `calculateCCCLengths` also work on arrays of headings, which keeps the heading search fast.
 - **Frames are the shared timeline.** A trajectory is an (F, 2) array with one position every `dt` seconds, and all sinks start at t = 0. Resolvers see only frames: WAIT repeats frames, DETOUR replaces a window, and both update T and L. So `result["tours"]` is the plan before resolving, while `check` reads the final `result["frames"]`, `result["T"]` and `result["L"]`.
@@ -96,6 +100,8 @@ What spans several modules:
   - Recording must make no random draws, or every result shifts. `test_ga_history_does_not_change_the_result` and `test_plan_routes_log_changes_nothing_and_follows_the_queue` check this.
   - `animations.split_states` rebuilds the planner's first-in, first-out queue of groups from the log, and `animations.partition_states` rebuilds the partition after each split (1, 2, ... K groups). Change them if the queue in `plan_routes` changes; `split_states` asserts when they disagree.
   - `animations.game_replay_data` re-runs round 0 of `conflict_game.resolve` on the planned tours with `trace`, which records each game's trajectories and strategies. `test_game_trace_changes_nothing` checks that recording changes no result. `game_animation` asserts that Φ, recomputed from the trace, equals the game record's potential trace.
+  - `partition.bisect(..., trace)` records σ, W, the eigenvalues, the Fiedler vector and the threshold sweep; `test_bisection_trace_changes_nothing_and_adds_up` checks it. `partition.sweep_order` is the polar order that `workload` measures, and `ga_tour.ordered_crossover` and `ga_tour.swap` are the moves `optimize` makes, so the figures draw the code's own steps. Moving them out of their callers changed no result: on seed 1 every GA order of all 29 runs, every split and every final frame are identical.
+  - Each figure of `module_figures.py` asserts that it reproduces the planner: the tour of `trajectory.build`, the halves of `bisect`, the cost table of the game record, and `D[0]` and `pred[0]` of `geodesic.build`.
 - **GIFs.** The new GIFs are saved with `plot.save_gif`, which gives all frames one shared palette, so a colour used by only a few pixels keeps its colour, and the files are much smaller. The older `plot.animation` (`planner.py --gif`) still uses matplotlib's writer. In the new GIFs, red (`#d03b3b`) means a problem and green (`#0ca30c`) means fixed, always with a text label.
 - **Determinism.** `run` uses `rng(seed)` for Steps 1-7 and `rng(seed + 1000)` for Steps 8-12, so the resolvers start those steps alike. An extra random draw or a geometry change shifts every result, and the README's tables were measured on seeds 1-10. Re-measure and update them when a change affects them; `compare_dubins.py` regenerates the Dubins comparison.
 
@@ -179,6 +185,32 @@ Only Section 0.13 was compared with the code line by line. Where the code is kno
 ## Work log
 
 Newest first.
+
+### 2026-11-13
+
+- **Added five more figures to `module_figures.py`, and `gif_stills.py`**, at the user's request. The user asked for the GA's moves, the output of `trajectory.py`, the bisection in four panels, GIFs turned into images, and the flow diagram, game and heading figures proposed earlier.
+  - `pipeline_flow.png`: Steps 0-6 as given to the user, with each module, its step in Section 0.11 (Steps 1-12, checked against PDF page 11), its parameters, the data on every arrow, and both loops.
+  - `seed1_sink14_ga_moves.png`: a start tour (fitness 141.0 m), ordered crossover at cut 4 (child with 2 peaks, 164.7 m), a swap (157.2 m), and sink 14's real run (best 129.2 m already in generation 0). The paper does not specify crossover or mutation, so the README's "Choices where the paper is silent" table now has a row for them.
+  - `seed1_sink8_trajectory.png`: 8 waypoints with the 17 candidate headings, the 7 Dubins legs by part (176.9 m; 224.1 m with bisector headings), the 103 frames, and T = 176.9 / 5 + 15.6 = 51.0 s against B.
+  - `seed1_split1_bisection.png`: W (σ = 8.4 m), the Fiedler vector by rank, the sweep against |A_t| (min-max at 52 + 46, T̂ = 376 and 386 s), and the halves with their sweep tours.
+  - `seed1_game6_pair.png`: sinks 3 and 11, 1.97 m apart at t = 39.57 s; cost table (α = 6) with conflict and own cost per cell; one switch to GO / DETOUR; 5.21 m after.
+  - `gif_stills.py`: 6 key frames per GIF, skipping repeated frames, plus a contact sheet each; all 14 GIFs in about 15 s. The outputs are in `output/stills/` and untracked.
+- **Measured while making the bisection figure:** on seed 1 the Fiedler vector concentrates on one weakly linked pair of sensors in all 14 splits (split 1: sensors 30 and 6 at f = 0.70, median |f| 0.01; split 10: a pair with degree 0.00). The halves still hold together: 77-100 % of the sensors have their nearest geodesic neighbour in the same half (81 % in split 1), against about 50 % for a random split. No code was changed for this; it is in the README.
+- **Caught in checking the game figure:** panel (a) first drew the sinks at the frame position (5.5 m apart) instead of the closest moment between frames (1.97 m), which is what the game measures. Fixed before the figure was kept.
+- **Small refactors, no result changed:** `ga_tour.ordered_crossover` and `swap` out of `optimize`, `partition.sweep_order` out of `workload`, and an optional `trace` in `partition.bisect`. Compared on seed 1 against a run made before the edits: identical orders, splits and frames.
+- **Tests:** added `test_ga_crossover_and_swap`, `test_bisection_trace_changes_nothing_and_adds_up` and `test_module_figures_draw`; all 36 pass.
+- **Explained to the user:** the difference between `seed1_splitting.gif` (one step per GA run, in queue order) and `seed1_partition.gif` (one step per split, the whole partition each time).
+- **Commit status:** nothing is committed.
+
+- **Added `module_figures.py` and `output/seed1_geodesic_graph.png`**, at the user's request. It is the first of a series of still figures, one per module, starting with `geodesic.py`. The figure has four panels:
+  - (a) The input map.
+  - (b) The visibility graph: 99 terminals, 148 corners and 7898 edges on seed 1, with both inflated outlines and the 43 edges of sensor S54.
+  - (c) Dijkstra from the base: the shortest-path tree, with sensors coloured by r. The path to S54 is 55.0 m against 41.8 m straight, and it bends at sensors S49 and S22, which are 4.7-5.2 m from an obstacle, not at corners.
+  - (d) A 5 × 5 part of `D`, with what `build` returns and where the planner uses it.
+- The user believed the visibility graph was the output of `geodesic.py`. It is not: `build` returns `D`, `pred` and `nodes`, and the reply explained this.
+- **Refactor.** The graph construction moved out of `geodesic.build` into the new `geodesic.visibility_graph`, which `build` calls. On seeds 1-3, `D`, `pred` and `nodes` are bit-for-bit identical, so no result changes. `geodesic_math.tex` now names `visibility_graph` in two places, and the PDF was rebuilt (still 8 pages).
+- **Test.** Added `test_visibility_graph_is_the_graph_build_uses`. It checks that Dijkstra on the returned graph gives `D` exactly, and that every edge keeps r·cos(3π/16) from the obstacles. On seed 1 the closest edges are 2.26 m and 6.23 m away, against bounds of 2.08 m and 5.82 m.
+- All 33 tests pass. README: the run command, the file table, and the new section "Figures of each module (seed 1)". Nothing is committed.
 
 ### 2026-11-12
 
