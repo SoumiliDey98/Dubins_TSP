@@ -189,7 +189,7 @@ Newest first.
 
 ### 2026-11-13
 
-- **Commented every line of every program for a young reader**, at the user's request: "comment each of the programs ... explaining each and every line such that a 10 year old child can understand without skipping any technical details". All 18 Python files of the implementation, tests included: 4,578 comment lines. Committed at the user's request on branch `module-figures`, on top of `227f57c`, and merged into `main` by fast-forward at the user's request; not pushed.
+- **Commented every line of every program for a young reader**, at the user's request: "comment each of the programs ... explaining each and every line such that a 10 year old child can understand without skipping any technical details". All 18 Python files of the implementation, tests included: 4,578 comment lines. Committed at the user's request on branch `module-figures`, on top of `227f57c`, merged into `main` by fast-forward and pushed to `origin/main`, all at the user's request; the branch was then deleted.
   - Each file opens with "HOW TO READ THIS FILE" and "WHAT THIS FILE IS FOR". Every statement (and every else/except/finally line) has its own comment directly above it, and Python words (import, def, return, for, if, dictionary, numpy array, slicing ...) are explained the first time they appear in each file, so every file reads on its own. Drawing words are explained at the top of `plot.py`.
   - Only comment lines were added; every original line, including existing comments and docstrings, is unchanged. Each file was checked against `227f57c` by two scratchpad scripts: one requires the original lines in order with only comment lines added, and an identical parse tree (AST); the other requires a comment directly above every statement. All 18 pass both. Comments for the big files were inserted by line number from lists, each with the line's expected text checked first, so no code line was retyped.
   - The comments explain the maths too: circle centres, cross products, the asin cut-out angle and the CCC triangle in `dubins_path.py`; the rubber-band picture of the Fiedler vector in `partition.py`; the potential argument in `conflict_game.py`.
@@ -207,7 +207,7 @@ Newest first.
 - **Small refactors, no result changed:** `ga_tour.ordered_crossover` and `swap` out of `optimize`, `partition.sweep_order` out of `workload`, and an optional `trace` in `partition.bisect`. Compared on seed 1 against a run made before the edits: identical orders, splits and frames.
 - **Tests:** added `test_ga_crossover_and_swap`, `test_bisection_trace_changes_nothing_and_adds_up` and `test_module_figures_draw`; all 36 pass.
 - **Explained to the user:** the difference between `seed1_splitting.gif` (one step per GA run, in queue order) and `seed1_partition.gif` (one step per split, the whole partition each time).
-- **Commit status:** committed at the user's request as `227f57c` on the new branch `module-figures` (114 files, including the 98 stills), later merged into `main` by fast-forward at the user's request; not pushed.
+- **Commit status:** committed at the user's request as `227f57c` on the new branch `module-figures` (114 files, including the 98 stills), later merged into `main` by fast-forward and pushed to `origin/main` at the user's request; the branch was then deleted.
 
 - **Added `module_figures.py` and `output/seed1_geodesic_graph.png`**, at the user's request. It is the first of a series of still figures, one per module, starting with `geodesic.py`. The figure has four panels:
   - (a) The input map.
